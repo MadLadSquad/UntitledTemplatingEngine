@@ -3,7 +3,7 @@ An library that takes a text template and allows you to maniputate the variables
 ## Installation
 This library can be installed by just copying the contents of this repository into your project and adding them to your build process
 
-The library uses [utfcpp](https://github.com/MadLadSquad/utfcpp) for UTF-8 support, this however can be disabled by defining the macro `UTG_NO_UTF8`. This way you can eliminate the dependency.
+The library uses [utfcpp](https://github.com/MadLadSquad/utfcpp) for UTF-8 support, this however can be disabled by defining the macro `UTG_USE_UTF8`. This way you can eliminate the dependency.
 
 If you are using UTF-8 support and you use CMake, you have to add the following line to your CMakeLists.txt file
 ```cmake
