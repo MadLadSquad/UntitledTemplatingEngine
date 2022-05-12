@@ -37,6 +37,7 @@ UTG::utgstr& UTG::InputUTF8::process() noexcept
 		utgstr tmp = "${{" + a.first + "}}";
 		while (true)
 		{
+			//utf8::
 			size_t fnd = mod.find(tmp);
 			if (fnd != utgstr::npos)
 				mod.replace(fnd, tmp.length(), a.second);
@@ -77,6 +78,7 @@ void UTG::InputUTF8::preprocess() noexcept
 	while (true)
 	{
 		size_t fnd = mod.find("${{", offset);
+		
 		if (fnd == utgstr::npos)
 			break;
 		utgstr tmp;
@@ -108,7 +110,7 @@ void UTG::InputUTF8::preprocess() noexcept
 					goto esc1;
 				}
 			}
-		esc1:
+esc1:
 			if (!bFound)
 			{
 				mod.erase(mod.begin() + fnd + 3, mod.begin() + offset + 1);
