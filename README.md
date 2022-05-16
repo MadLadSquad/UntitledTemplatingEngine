@@ -1,5 +1,9 @@
 # UntitledTextGenerator
 An library that takes a text template and allows you to maniputate the variables to be substituted
+
+Features:
+- ANSI string parsing
+- UTF-8 support - to be added
 ## Installation
 This library can be installed by just copying the contents of this repository into your project and adding them to your build process
 
