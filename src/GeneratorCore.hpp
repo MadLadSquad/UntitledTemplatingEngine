@@ -1,8 +1,6 @@
 #pragma once
 #include <vector>
 
-#define UTG_CUSTOM_STRING_TYPE std::string
-#define UTG_CUSTOM_STRING_TYPE_INCLUDE <iostream>
 #ifdef UTG_CUSTOM_STRING_TYPE
 	#ifndef UTG_CUSTOM_STRING_TYPE_INCLUDE
 		#error UTG_CUSTOM_STRING_TYPE_INCLUDE macro not defined
