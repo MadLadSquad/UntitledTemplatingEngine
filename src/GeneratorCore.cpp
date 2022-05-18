@@ -17,6 +17,7 @@ UTG::Input::Error UTG::Input::init(const utgstr& str, UTG::Input::InputType type
 		}
 		mod = original;
 		preprocess();
+        return ERROR_TYPE_NO_ERROR;
 	}
 	else if (type == UTG::Input::INPUT_TYPE_MEMORY)
 	{
@@ -33,15 +34,9 @@ UTG::utgstr& UTG::Input::process() noexcept
 	for (auto& a : arr)
 	{
 		utgstr tmp = "${{" + a.first + "}}";
-		while (true)
-		{
-			size_t fnd = mod.find(tmp);
-			if (fnd != utgstr::npos)
-				mod.replace(fnd, tmp.length(), a.second);
-			else
-				goto escape;
-		}
-escape:;
+        size_t fnd;
+        while ((fnd = mod.find(tmp)) != utgstr::npos)
+            mod.replace(fnd, tmp.length(), a.second);
 	}
 	return mod;
 }
@@ -72,50 +67,47 @@ UTG::utgstr& UTG::Input::getOriginal() noexcept
 void UTG::Input::preprocess() noexcept
 {
 	size_t offset = 0;
-	while (true)
-	{
-		size_t fnd = mod.find("${{", offset);
-		if (fnd == utgstr::npos)
-			break;
-		utgstr tmp;
-		for (size_t i = (fnd + 3); i < mod.size(); i++)
-		{
-			if (mod[i] == ' ')
-				continue;
-			else if (mod[i] == '}' && (i + 1) < mod.size() && mod[i + 1] == '}')
-			{
-				offset = i - 1;
-				goto esc;
-			}
-			else if ((i + 1) >= mod.size())
-			{
-				tmp.clear();
-				goto esc;
-			}
-			tmp += mod[i];
-		}
+    size_t fnd = utgstr::npos;
+    while ((fnd = mod.find("${{", offset)) != utgstr::npos)
+    {
+        utgstr tmp;
+        for (size_t i = (fnd + 3); i < mod.size(); i++)
+        {
+            if (mod[i] == ' ')
+                continue;
+            else if (mod[i] == '}' && (i + 1) < mod.size() && mod[i + 1] == '}')
+            {
+                offset = i - 1;
+                goto esc;
+            }
+            else if ((i + 1) >= mod.size())
+            {
+                tmp.clear();
+                goto esc;
+            }
+            tmp += mod[i];
+        }
 esc:
-		if (!tmp.empty())
-		{
-			bool bFound = false;
-			for (auto& a : arr)
-			{
-				if (a.first == tmp)
-				{
-					bFound = true;
-					goto esc1;
-				}
-			}
+        if (!tmp.empty())
+        {
+            bool bFound = false;
+            for (auto& a : arr)
+            {
+                if (a.first == tmp)
+                {
+                    bFound = true;
+                    goto esc1;
+                }
+            }
 esc1:
-			if (!bFound)
-			{
-				mod.erase(mod.begin() + fnd + 3, mod.begin() + offset + 1);
-				mod.insert(fnd + 3, tmp);
-				
-				arr.push_back({tmp, ""});
-			}
-		}
-	}
+            if (!bFound)
+            {
+                mod.erase(mod.begin() + fnd + 3, mod.begin() + offset + 1);
+                mod.insert(fnd + 3, tmp);
+                arr.emplace_back(tmp, "");
+            }
+        }
+    }
 }
 
 UTG::Input::Result::operator bool() noexcept
