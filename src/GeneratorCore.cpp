@@ -1,6 +1,7 @@
 #include "GeneratorCore.hpp"
 #include <fstream>
 #include <string>
+#include <cstring>
 
 UTG::Input::Error UTG::Input::init(const utgstr& str, UTG::Input::InputType type) noexcept
 {
@@ -67,15 +68,13 @@ UTG::utgstr& UTG::Input::getOriginal() noexcept
 void UTG::Input::preprocess() noexcept
 {
 	size_t offset = 0;
-    size_t fnd = utgstr::npos;
+    size_t fnd;
     while ((fnd = mod.find("${{", offset)) != utgstr::npos)
     {
         utgstr tmp;
-        for (size_t i = (fnd + 3); i < mod.size(); i++)
+        for (size_t i = (fnd + strlen("${{")); i < mod.size(); i++)
         {
-            if (mod[i] == ' ')
-                continue;
-            else if (mod[i] == '}' && (i + 1) < mod.size() && mod[i + 1] == '}')
+            if (mod[i] == '}' && (i + 1) < mod.size() && mod[i + 1] == '}')
             {
                 offset = i - 1;
                 goto esc;
