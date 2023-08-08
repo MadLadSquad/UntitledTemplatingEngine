@@ -32,11 +32,9 @@
 *.app
 
 main.cpp
+main.c
 CMakeLists.txt
 .vs/
 .idea/
 build/
-cmake-build-release/
-cmake-build-debug/
-cmake-build-relwithdebinfo/
-
+cmake-build-*/
