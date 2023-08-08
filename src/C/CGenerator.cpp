@@ -169,7 +169,7 @@ bool UTTE_CoreFuncs_getBooleanV(const char* str)
     return UTTE::CoreFuncs::getBooleanV(str);
 }
 
-char** getArray(const UTTE_CVariable* variable, size_t* size)
+char** UTTE_CoreFuncs_getArray(const UTTE_CVariable* variable, size_t* size)
 {
     auto* arr = UTTE::CoreFuncs::getArray({ .value = variable->value, .type = variable->type });
     if (arr == nullptr)
