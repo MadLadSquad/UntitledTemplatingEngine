@@ -3,7 +3,6 @@
 #include <vector>
 #include <map>
 #include <functional>
-#include <utfcpp/source/utf8.h>
 #include "Common.h"
 #include "CoreFuncs.hpp"
 #include "C/CGenerator.h"

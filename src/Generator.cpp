@@ -1,4 +1,5 @@
 #include "Generator.hpp"
+#include <utfcpp/source/utf8.h>
 #include <fstream>
 
 UTTE::InitialisationResult UTTE::Generator::loadFromFile(const utte_string& location, bool bReplaceInvalidCharacters, char32_t replaceInvalid) noexcept
