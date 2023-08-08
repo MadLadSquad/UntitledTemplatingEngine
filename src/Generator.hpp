@@ -18,7 +18,7 @@ namespace UTTE
     {
         bool operator==(const Variable& variable) const noexcept;
 
-        utte_string value;
+        utte_string value{};
         VariableTypeHint type = UTTE_VARIABLE_TYPE_HINT_NORMAL;
         ParseResultStatus status = UTTE_PARSE_STATUS_SUCCESS;
 

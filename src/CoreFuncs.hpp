@@ -35,14 +35,15 @@
  * @param y - Value or container that need so be passed to the capture of the internal lambda function
  * @param z - Value that the value of the new variable will be set to. Can use the value or container passed to the
  * capture as "y"
+ * @param t - The type of the variable in case you want to change it
  */
-#define UTTE_VARIABLE_SET_NEW_VAL(x, y, z, t) x.function = [y](std::vector<Variable>&, UTTE::Generator*) -> Variable { return { .value = z, .type = t }; }
+#define UTTE_VARIABLE_SET_NEW_VAL(x, y, z, t) x.function = [y](std::vector<UTTE::Variable>&, UTTE::Generator*) -> UTTE::Variable { return { .value = (z), .type = (t) }; }
 
 /**
  * @brief A utility macro to return an empty value with an error type
  * @param x - The error type as specified in the "ParseResultStatus" enum
  */
-#define UTTE_ERROR(x) Variable{ .value = "", .type = UTTE_VARIABLE_TYPE_HINT_NORMAL, .status = x }
+#define UTTE_ERROR(x) UTTE::Variable{ .value = "", .type = UTTE_VARIABLE_TYPE_HINT_NORMAL, .status = (x) }
 
 namespace UTTE
 {
