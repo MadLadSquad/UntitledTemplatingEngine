@@ -45,8 +45,8 @@ namespace UTTE
     public:
         Generator() = default;
 
-        InitialisationResult loadFromFile(const utte_string& location, bool bReplaceInvalidCharacters = false, char32_t replaceInvalid = U'?') noexcept;
-        InitialisationResult loadFromString(const utte_string& str, bool bReplaceInvalidCharacters = false, char32_t replaceInvalid = U'?') noexcept;
+        InitialisationResult loadFromFile(const utte_string& location) noexcept;
+        InitialisationResult loadFromString(const utte_string& str) noexcept;
 
         ParseResult parse() noexcept;
 
@@ -71,9 +71,6 @@ namespace UTTE
         friend class CoreFuncs;
 
         static UTTE::ParseResult parseFunction(Generator& generator, size_t& i, bool bRoot = false) noexcept;
-
-        bool bReplaceValidCharactersI = false;
-        char32_t replaceInvalidI = U'?';
 
         utte_string data;
         std::vector<Function> functions =

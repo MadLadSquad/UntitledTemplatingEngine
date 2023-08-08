@@ -41,8 +41,8 @@ extern "C"
     // Free with UTTE_CGenerator_Free
     UVK_PUBLIC_API UTTE_CGenerator* UTTE_CGenerator_Allocate();
 
-    UVK_PUBLIC_API UTTE_InitialisationResult UTTE_CGenerator_loadFromFile(UTTE_CGenerator* generator, const char* location, bool bReplaceInvalidCharacters, uint32_t replaceInvalid);
-    UVK_PUBLIC_API UTTE_InitialisationResult UTTE_CGenerator_loadFromString(UTTE_CGenerator* generator, const char* str, bool bReplaceInvalidCharacters, uint32_t replaceInvalid);
+    UVK_PUBLIC_API UTTE_InitialisationResult UTTE_CGenerator_loadFromFile(UTTE_CGenerator* generator, const char* location);
+    UVK_PUBLIC_API UTTE_InitialisationResult UTTE_CGenerator_loadFromString(UTTE_CGenerator* generator, const char* str);
 
     UVK_PUBLIC_API UTTE_CParseResult UTTE_CGenerator_parse(UTTE_CGenerator* generator);
 

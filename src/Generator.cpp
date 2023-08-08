@@ -1,12 +1,8 @@
 #include "Generator.hpp"
-#include <utfcpp/source/utf8.h>
 #include <fstream>
 
-UTTE::InitialisationResult UTTE::Generator::loadFromFile(const utte_string& location, bool bReplaceInvalidCharacters, char32_t replaceInvalid) noexcept
+UTTE::InitialisationResult UTTE::Generator::loadFromFile(const utte_string& location) noexcept
 {
-    bReplaceValidCharactersI = bReplaceInvalidCharacters;
-    replaceInvalidI = replaceInvalid;
-
     std::ifstream in(location);
     if (!in)
         return UTTE_INITIALISATION_RESULT_INVALID_FILE;
@@ -17,27 +13,12 @@ UTTE::InitialisationResult UTTE::Generator::loadFromFile(const utte_string& loca
     in.seekg(0);
     in.read(&data[0], static_cast<std::streamsize>(size));
     in.close();
-    if (!utf8::is_valid(data))
-    {
-        if (bReplaceInvalidCharacters)
-            utf8::replace_invalid(data, replaceInvalid);
-        return UTTE_INITIALISATION_RESULT_INVALID_UTF8;
-    }
     return UTTE_INITIALISATION_RESULT_SUCCESS;
 }
 
-UTTE::InitialisationResult UTTE::Generator::loadFromString(const utte_string& str, bool bReplaceInvalidCharacters, char32_t replaceInvalid) noexcept
+UTTE::InitialisationResult UTTE::Generator::loadFromString(const utte_string& str) noexcept
 {
-    bReplaceValidCharactersI = bReplaceInvalidCharacters;
-    replaceInvalidI = replaceInvalid;
-
     data = str;
-    if (!utf8::is_valid(data))
-    {
-        if (bReplaceInvalidCharacters)
-            utf8::replace_invalid(data, replaceInvalid);
-        return UTTE_INITIALISATION_RESULT_INVALID_UTF8;
-    }
     return UTTE_INITIALISATION_RESULT_SUCCESS;
 }
 

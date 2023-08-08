@@ -18,7 +18,7 @@ UTTE::Variable UTTE::CoreFuncs::funcIf(std::vector<Variable>& args, UTTE::Genera
     if (!getBooleanV(args[1].value))
         index = 3;
 
-    gen.loadFromString(args[index].value, generator->bReplaceValidCharactersI, generator->replaceInvalidI);
+    gen.loadFromString(args[index].value);
     auto result = gen.parse();
     if (result.status != UTTE_PARSE_STATUS_SUCCESS)
         return UTTE_ERROR(result.status);
@@ -81,7 +81,7 @@ UTTE::Variable UTTE::CoreFuncs::funcSwitch(std::vector<Variable>& args, UTTE::Ge
         {
             if (args[1] == args[i])
             {
-                gen.loadFromString(args[i + 1].value, generator->bReplaceValidCharactersI, generator->replaceInvalidI);
+                gen.loadFromString(args[i + 1].value);
                 auto r = gen.parse();
                 if (r.status != UTTE_PARSE_STATUS_SUCCESS)
                     return UTTE_ERROR(r.status);
@@ -93,7 +93,7 @@ UTTE::Variable UTTE::CoreFuncs::funcSwitch(std::vector<Variable>& args, UTTE::Ge
             return { .value = "", .type = UTTE_VARIABLE_TYPE_HINT_NORMAL };
         else if ((i + 1) == args.size() && args[i].type == UTTE_VARIABLE_TYPE_HINT_FUNCTION)// Last argument is function
         {
-            gen.loadFromString(args[i].value, generator->bReplaceValidCharactersI, generator->replaceInvalidI);
+            gen.loadFromString(args[i].value);
             auto r = gen.parse();
             if (r.status != UTTE_PARSE_STATUS_SUCCESS)
                 return UTTE_ERROR(r.status);
@@ -120,7 +120,7 @@ UTTE::Variable UTTE::CoreFuncs::funcCond(std::vector<Variable>& args, UTTE::Gene
         {
             if (getBooleanV(args[i].value))
             {
-                gen.loadFromString(args[i + 1].value, generator->bReplaceValidCharactersI, generator->replaceInvalidI);
+                gen.loadFromString(args[i + 1].value);
                 auto r = gen.parse();
                 if (r.status != UTTE_PARSE_STATUS_SUCCESS)
                     return UTTE_ERROR(r.status);
@@ -132,7 +132,7 @@ UTTE::Variable UTTE::CoreFuncs::funcCond(std::vector<Variable>& args, UTTE::Gene
             return { .value = "", .type = UTTE_VARIABLE_TYPE_HINT_NORMAL };
         else if ((i + 1) == args.size() && args[i].type == UTTE_VARIABLE_TYPE_HINT_FUNCTION)// Last argument is function
         {
-            gen.loadFromString(args[i].value, generator->bReplaceValidCharactersI, generator->replaceInvalidI);
+            gen.loadFromString(args[i].value);
             auto r = gen.parse();
             if (r.status != UTTE_PARSE_STATUS_SUCCESS)
                 return UTTE_ERROR(r.status);
@@ -168,7 +168,7 @@ UTTE::Variable UTTE::CoreFuncs::funcFor(std::vector<Variable>& args, UTTE::Gener
         for (auto& a : *array)
         {
             UTTE_VARIABLE_SET_NEW_VAL(key, a, a, UTTE_VARIABLE_TYPE_HINT_NORMAL);
-            gen.loadFromString(args[3].value, generator->bReplaceValidCharactersI, generator->replaceInvalidI);
+            gen.loadFromString(args[3].value);
 
             auto r = gen.parse();
             if (r.status != UTTE_PARSE_STATUS_SUCCESS)
@@ -194,7 +194,7 @@ UTTE::Variable UTTE::CoreFuncs::funcFor(std::vector<Variable>& args, UTTE::Gener
             UTTE_VARIABLE_SET_NEW_VAL(key, a, a.first, UTTE_VARIABLE_TYPE_HINT_NORMAL);
             UTTE_VARIABLE_SET_NEW_VAL(val, a, a.second, UTTE_VARIABLE_TYPE_HINT_NORMAL);
 
-            gen.loadFromString(args[4].value, generator->bReplaceValidCharactersI, generator->replaceInvalidI);
+            gen.loadFromString(args[4].value);
             auto r = gen.parse();
             if (r.status != UTTE_PARSE_STATUS_SUCCESS)
                 return UTTE_ERROR(r.status);

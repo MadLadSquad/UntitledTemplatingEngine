@@ -56,8 +56,7 @@ extern "C"
     typedef enum UTTE_InitialisationResult
     {
         UTTE_INITIALISATION_RESULT_SUCCESS = 0,
-        UTTE_INITIALISATION_RESULT_INVALID_UTF8 = 1,
-        UTTE_INITIALISATION_RESULT_INVALID_FILE = 2,
+        UTTE_INITIALISATION_RESULT_INVALID_FILE = 1,
     } UTTE_InitialisationResult;
 
     /**

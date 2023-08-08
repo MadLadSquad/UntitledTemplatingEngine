@@ -20,14 +20,14 @@ UTTE_CGenerator* UTTE_CGenerator_Allocate()
     return new UTTE::Generator;
 }
 
-UTTE_InitialisationResult UTTE_CGenerator_loadFromFile(UTTE_CGenerator* generator, const char* location, bool bReplaceInvalidCharacters, uint32_t replaceInvalid)
+UTTE_InitialisationResult UTTE_CGenerator_loadFromFile(UTTE_CGenerator* generator, const char* location)
 {
-    return cast(generator)->loadFromFile(location, bReplaceInvalidCharacters, replaceInvalid);
+    return cast(generator)->loadFromFile(location);
 }
 
-UTTE_InitialisationResult UTTE_CGenerator_loadFromString(UTTE_CGenerator* generator, const char* str, bool bReplaceInvalidCharacters, uint32_t replaceInvalid)
+UTTE_InitialisationResult UTTE_CGenerator_loadFromString(UTTE_CGenerator* generator, const char* str)
 {
-    return cast(generator)->loadFromString(str, bReplaceInvalidCharacters, replaceInvalid);
+    return cast(generator)->loadFromString(str);
 }
 
 UTTE_CParseResult UTTE_CGenerator_parse(UTTE_CGenerator* generator)
