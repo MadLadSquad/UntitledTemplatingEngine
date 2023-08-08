@@ -10,7 +10,7 @@ This template showcases the whole standard library and what the language is capa
 ```liquid
 -------------------------------------------------- STRING REPLACEMENT --------------------------------------------------
 
-The {{ at {{ descriptors }} 0 }} {{ colour }} fox {{ at {{ actions}} a1 }} over the {{ at {{ descriptors}} 1 }} dog
+The {{ at {{ descriptors }} 0 }} {{ colour }} fox {{ at {{ actions }} a1 }} over the {{ at {{ descriptors }} 1 }} dog
 
 ------------------------------------------------------ FOR LOOPS -------------------------------------------------------
 
@@ -66,14 +66,15 @@ Additionally, we wanted to add a static site generator mode to the
 [UVKBuildTool](https://github.com/MadLadSquad/UVKBuildTool), for which, we needed more advanced templates.
 
 ## Size and performance
-The parser is less than 260 lines of code, while the standard library is around 360, including comments.
+The parser, including its header file and the whole C++ API is around 340 SLoC. The standard library is around 360 SLoC,
+while the C API is around 220 SLoC
 
 Given that this library provides a language interpreter, the parser may be a bit slower than other dumb implementations.
-However, given that the parser goes through the whole input string in only 1 pass with almost no walking back it is safe
-to say that the library is quite performant.
+However, given that the parser is really simple and does all the parsing in 1 pass, it's safe to say that it's quite
+performat for what it provides.
 
 Additionally, we offer the option to replace `std::string` and `std::map` with other custom implementations, which may
 lead to massive performance gains.
 
 ## Usage, installation and learning
-Go to the [wiki](https://github.com/MadLadSquad/UntitledTemplatingEngine/wiki/).
+Documentation can be found on the [wiki](https://github.com/MadLadSquad/UntitledTemplatingEngine/wiki/).
