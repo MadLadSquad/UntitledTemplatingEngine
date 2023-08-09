@@ -11,7 +11,7 @@ UTTE::InitialisationResult UTTE::Generator::loadFromFile(const utte_string& loca
     data.resize(size);
 
     in.seekg(0);
-    in.read(&data[0], static_cast<std::streamsize>(size));
+    in.read(data.data(), static_cast<std::streamsize>(size));
     in.close();
     return UTTE_INITIALISATION_RESULT_SUCCESS;
 }
