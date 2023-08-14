@@ -219,7 +219,7 @@ UTTE::ParseResult UTTE::Generator::parseFunction(UTTE::Generator& generator, siz
                                 }
                             }
 exit_special_fun_inner_block:
-                            args.emplace_back(data.substr(initialPos, i - initialPos - 1), UTTE_VARIABLE_TYPE_HINT_NORMAL);
+                            args.push_back({ .value = data.substr(initialPos, i - initialPos - 1), .type = UTTE_VARIABLE_TYPE_HINT_NORMAL });
                             result._internalBuffer = generator.functions[a].function(args, &generator);
                             result.status = result._internalBuffer.status;
 
