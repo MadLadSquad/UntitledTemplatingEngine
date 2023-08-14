@@ -1,7 +1,7 @@
 #include "CGenerator.h"
 #include "../Generator.hpp"
 
-#define cast(x) ((UTTE::Generator*)x)
+#define cast(x) ((UTTE::Generator*)(x))
 
 // Since the geniuses who standardise C think it's a good idea to add this in 2023
 char* UTTE_strdup(const char* str)
@@ -53,7 +53,7 @@ UTTE_CFunctionHandle* UTTE_CGenerator_pushFunction(UTTE_CGenerator* generator, c
         cvars.reserve(args.size());
 
         for (auto& a : args)
-            cvars.emplace_back(a.value.c_str(), a.type);
+            cvars.push_back({ .value = a.value.c_str(), .type = a.type });
         auto result = f.function(cvars.data(), cvars.size(), (UTTE_CGenerator*)gen);
 
         UTTE::Variable ret{ .value = result.value, .type = result.type, .status = result.status };
@@ -84,7 +84,7 @@ bool UTTE_CGenerator_setFunction(UTTE_CGenerator* generator, const char* name, U
         cvars.reserve(args.size());
 
         for (auto& a : args)
-            cvars.emplace_back(a.value.c_str(), a.type);
+            cvars.push_back({ .value = a.value.c_str(), .type = a.type });
         auto result = event(cvars.data(), cvars.size(), (UTTE_CGenerator*)gen);
 
         UTTE::Variable ret{ .value = result.value, .type = result.type, .status = result.status };
@@ -140,7 +140,7 @@ void UTTE_CGenerator_modify(UTTE_CFunctionHandle* handle, UTTE_CFunction functio
         cvars.reserve(args.size());
 
         for (auto& a : args)
-            cvars.emplace_back(a.value.c_str(), a.type);
+            cvars.push_back({ .value = a.value.c_str(), .type = a.type });
         auto result = function.function(cvars.data(), cvars.size(), (UTTE_CGenerator*)gen);
 
         UTTE::Variable ret{ .value = result.value, .type = result.type };
