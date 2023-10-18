@@ -78,4 +78,3 @@ lead to massive performance gains.
 
 ## Usage, installation and learning
 Documentation can be found on the [wiki](https://github.com/MadLadSquad/UntitledTemplatingEngine/wiki/).
-
