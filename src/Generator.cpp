@@ -232,6 +232,11 @@ exit_special_fun_inner_block:
     return result;
 }
 
+UTTE::Variable UTTE::Generator::makeMap(const utte_map<utte_string, utte_string>& map) noexcept
+{
+    return { .value = std::to_string(((intptr_t)&map)), .type = UTTE_VARIABLE_TYPE_HINT_MAP };
+}
+
 bool UTTE::Variable::operator==(const UTTE::Variable &variable) const noexcept
 {
     return (this->value == variable.value && this->type == variable.type );
