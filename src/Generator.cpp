@@ -75,11 +75,6 @@ UTTE::Variable UTTE::Generator::makeArray(const std::vector<utte_string>& arr) n
     return { .value = std::to_string((intptr_t)(&arr)), .type = UTTE_VARIABLE_TYPE_HINT_ARRAY };
 }
 
-UTTE::Variable UTTE::Generator::makeMap(const utte_map<utte_string, utte_string>& map) noexcept
-{
-    return { .value = std::to_string(((intptr_t)&map)), .type = UTTE_VARIABLE_TYPE_HINT_MAP };
-}
-
 UTTE::ParseResult UTTE::Generator::parse() noexcept
 {
     size_t i = data.find_first_of("{{");

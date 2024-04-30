@@ -57,7 +57,10 @@ namespace UTTE
         bool setFunction(const char* name, const std::function<Func>& event) noexcept;
 
         static Variable makeArray(const std::vector<utte_string>& arr) noexcept;
-        static Variable makeMap(const utte_map<utte_string, utte_string>& map) noexcept;
+        static Variable makeMap(const utte_map<utte_string, utte_string>& map) noexcept
+        {
+            return { .value = std::to_string(((intptr_t)&map)), .type = UTTE_VARIABLE_TYPE_HINT_MAP };
+        }
 
         // Returns a reference to an array that will be garbage-collected when the generator's destructor is called.
         // This is useful for custom functions that want to return arrays without managing their own registry
