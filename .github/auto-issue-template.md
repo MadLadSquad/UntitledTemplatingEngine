@@ -4,3 +4,5 @@ assignees: Madman10K
 labels: enhancement
 ---
 Automatic issue for updating the submodules to latest!
+
+@MadLadSquad/dependencies 
