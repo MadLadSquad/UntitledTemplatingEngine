@@ -51,7 +51,7 @@ namespace UTTE
     struct Function;
     class Generator;
 
-    class UVK_PUBLIC_API CoreFuncs
+    class MLS_PUBLIC_API CoreFuncs
     {
     public:
         static Variable funcIf(std::vector<Variable>& args, Generator* generator) noexcept;

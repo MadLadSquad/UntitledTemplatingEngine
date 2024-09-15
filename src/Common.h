@@ -4,22 +4,18 @@
 #include <stddef.h>
 #include <string.h>
 
-#ifdef UVK_LOG_EXPORT_FROM_LIBRARY
+#ifdef MLS_EXPORT_LIBRARY
     #ifdef _WIN32
-        #ifdef UVK_LIB_COMPILE
-            #define UVK_PUBLIC_API __declspec(dllexport)
-            #define UVK_PUBLIC_TMPL_API __declspec(dllexport)
+        #ifdef MLS_LIB_COMPILE
+            #define MLS_PUBLIC_API __declspec(dllexport)
         #else
-            #define UVK_PUBLIC_API __declspec(dllimport)
-            #define UVK_PUBLIC_TMPL_API
+            #define MLS_PUBLIC_API __declspec(dllimport)
         #endif
     #else
-        #define UVK_PUBLIC_API
-        #define UVK_PUBLIC_TMPL_API
+        #define MLS_PUBLIC_API
     #endif
 #else
-    #define UVK_PUBLIC_API
-    #define UVK_PUBLIC_TMPL_API
+    #define MLS_PUBLIC_API
 #endif
 
 #ifdef __cplusplus

@@ -13,7 +13,7 @@ namespace UTTE
     typedef UTTE_InitialisationResult InitialisationResult;
     typedef UTTE_ParseResultStatus ParseResultStatus;
 
-    struct UVK_PUBLIC_API Variable
+    struct MLS_PUBLIC_API Variable
     {
         bool operator==(const Variable& variable) const noexcept;
 
@@ -24,7 +24,7 @@ namespace UTTE
         bool _internalBoolComment = false;
     };
 
-    struct UVK_PUBLIC_API ParseResult
+    struct MLS_PUBLIC_API ParseResult
     {
         ParseResultStatus status = UTTE_PARSE_STATUS_SUCCESS;
         const utte_string* result = nullptr;
@@ -34,13 +34,13 @@ namespace UTTE
 
     using Func = Variable(std::vector<Variable>&, UTTE::Generator*);
 
-    struct UVK_PUBLIC_API Function
+    struct MLS_PUBLIC_API Function
     {
         utte_string name;
         std::function<Func> function = [](std::vector<Variable>&, UTTE::Generator*) -> Variable{ return {}; };
     };
 
-    class UVK_PUBLIC_API Generator
+    class MLS_PUBLIC_API Generator
     {
     public:
         Generator() = default;
