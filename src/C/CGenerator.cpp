@@ -6,16 +6,47 @@
 // Since the geniuses who standardise C think it's a good idea to add this in 2023
 char* UTTE_strdup(const char* str)
 {
-    auto len = strlen(str) + 1;
+    const auto len = strlen(str) + 1;
 
     // + 1 for the null terminator
-    auto buffer = (char*)malloc(len);
+    const auto buffer = static_cast<char*>(malloc(len));
     if (buffer)
         memcpy(buffer, str, len);
     return buffer;
 }
 
-UTTE_CGenerator* UTTE_CGenerator_Allocate()
+// Copies a value into a fresh heap buffer of exactly its byte length. Unlike UTTE_strdup this does not stop at the
+// first '\0', so it is safe for the raw-byte pointer payloads that back arrays/maps (whose bytes commonly contain
+// embedded zeros).
+static char* UTTE_dupValueBytes(const utte_string& value)
+{
+    const auto size = value.size();
+    const auto buffer = static_cast<char*>(malloc(size));
+    if (buffer)
+        memcpy(buffer, value.data(), size);
+    return buffer;
+}
+
+// Reconstructs a C++ Variable from a UTTE_CVariable crossing the C boundary. ARRAY/MAP values are a raw
+// sizeof(intptr_t)-byte encoded pointer that may contain embedded '\0', so they are taken by explicit length; every
+// other value is an ordinary NUL-terminated C string. This is what stops encoded array/map pointers from being silently
+// truncated by the implicit std::string(const char*) constructor.
+static UTTE::Variable UTTE_toVariable(const UTTE_CVariable& var)
+{
+    UTTE::Variable out;
+    out.type = var.type;
+    out.status = var.status;
+    if (var.value != nullptr)
+    {
+        if (var.type == UTTE_VARIABLE_TYPE_HINT_ARRAY || var.type == UTTE_VARIABLE_TYPE_HINT_MAP)
+            out.value.assign(var.value, sizeof(intptr_t));
+        else
+            out.value.assign(var.value);
+    }
+    return out;
+}
+
+UTTE_CGenerator* UTTE_CGenerator_allocate()
 {
     return new UTTE::Generator;
 }
@@ -32,7 +63,7 @@ UTTE_InitialisationResult UTTE_CGenerator_loadFromString(UTTE_CGenerator* genera
 
 UTTE_CParseResult UTTE_CGenerator_parse(UTTE_CGenerator* generator)
 {
-    auto tmp = cast(generator)->parse();
+    const auto tmp = cast(generator)->parse();
 
     // tmp.result->c_str() is safe to call since this is simply a pointer to the internal data. Our data is on the heap
     // in the C API anyway so no issues
@@ -41,22 +72,22 @@ UTTE_CParseResult UTTE_CGenerator_parse(UTTE_CGenerator* generator)
 
 UTTE_CFunctionHandle* UTTE_CGenerator_pushVariable(UTTE_CGenerator* generator, const UTTE_CVariable var, const char* name)
 {
-    auto& func = cast(generator)->pushVariable({ .value = var.value, .type = var.type }, name);
+    auto& func = cast(generator)->pushVariable(UTTE_toVariable(var), name);
     UTTE_CGenerator_tryFreeCVariable(&var);
     return &func;
 }
 
 UTTE_CFunctionHandle* UTTE_CGenerator_pushFunction(UTTE_CGenerator* generator, const UTTE_CFunction f)
 {
-    auto& func = cast(generator)->pushFunction({ .name = f.name, .function = [f](std::vector<UTTE::Variable>& args, UTTE::Generator* gen) -> UTTE::Variable {
+    auto& func = cast(generator)->pushFunction({ .name = f.name, .function = [f](const std::vector<UTTE::Variable>& args, UTTE::Generator* gen) -> UTTE::Variable {
         std::vector<UTTE_CVariable> cvars;
         cvars.reserve(args.size());
 
         for (auto& a : args)
             cvars.push_back({ .value = a.value.c_str(), .type = a.type });
-        auto result = f.function(cvars.data(), cvars.size(), (UTTE_CGenerator*)gen);
+        const auto result = f.function(cvars.data(), cvars.size(), static_cast<UTTE_CGenerator*>(gen));
 
-        UTTE::Variable ret{ .value = result.value, .type = result.type, .status = result.status };
+        UTTE::Variable ret = UTTE_toVariable(result);
 
         // Since non-string-literals will need heap allocation to be added to UTTE_CVariable safely, we can deallocate
         // them here if the user informs us using this boolean
@@ -65,13 +96,13 @@ UTTE_CFunctionHandle* UTTE_CGenerator_pushFunction(UTTE_CGenerator* generator, c
     } });
 
     if (f.bDeallocate)
-        free((void*)f.name);
+        free(const_cast<char*>(f.name));
     return &func;
 }
 
 bool UTTE_CGenerator_setVariable(UTTE_CGenerator* generator, const char* name, const UTTE_CVariable* variable)
 {
-    auto result = cast(generator)->setVariable(name, { .value = variable->value, .type = variable->type });
+    const auto result = cast(generator)->setVariable(name, UTTE_toVariable(*variable));
     UTTE_CGenerator_tryFreeCVariable(variable);
     return result;
 }
@@ -85,9 +116,9 @@ bool UTTE_CGenerator_setFunction(UTTE_CGenerator* generator, const char* name, U
 
         for (auto& a : args)
             cvars.push_back({ .value = a.value.c_str(), .type = a.type });
-        auto result = event(cvars.data(), cvars.size(), (UTTE_CGenerator*)gen);
+        const auto result = event(cvars.data(), cvars.size(), static_cast<UTTE_CGenerator*>(gen));
 
-        UTTE::Variable ret{ .value = result.value, .type = result.type, .status = result.status };
+        UTTE::Variable ret = UTTE_toVariable(result);
 
         // Since non-string-literals will need heap allocation to be added to UTTE_CVariable safely, we can deallocate
         // them here if the user informs us using this boolean
@@ -104,8 +135,9 @@ UTTE_CVariable UTTE_CGenerator_makeArray(UTTE_CGenerator* generator, char** arr,
     for (size_t i = 0; i < size; i++)
         vector.emplace_back(arr[i]);
 
-    auto variable = UTTE::Generator::makeArray(vector);
-    return { .value = UTTE_strdup(variable.value.c_str()), .type = variable.type, .bDeallocate = true };
+    const auto variable = UTTE::Generator::makeArray(vector);
+    // The encoded pointer is raw bytes (may contain '\0'), so copy by length — UTTE_strdup would truncate it.
+    return { .value = UTTE_dupValueBytes(variable.value), .type = variable.type, .bDeallocate = true };
 }
 
 
@@ -116,34 +148,42 @@ UTTE_CVariable UTTE_CGenerator_makeMap(UTTE_CGenerator* generator, UTTE_CPair* m
     for (size_t i = 0; i < size; i++)
         dict.insert({ map[i].key, map[i].val });
 
-    auto variable = UTTE::Generator::makeMap(dict);
-    return { .value = UTTE_strdup(variable.value.c_str()), .type = variable.type, .bDeallocate = true };
+    const auto variable = UTTE::Generator::makeMap(dict);
+    // The encoded pointer is raw bytes (may contain '\0'), so copy by length — UTTE_strdup would truncate it.
+    return { .value = UTTE_dupValueBytes(variable.value), .type = variable.type, .bDeallocate = true };
 }
 
-void UTTE_CGenerator_Free(UTTE_CGenerator* generator)
+char* UTTE_CGenerator_encodePointer(intptr_t value)
 {
-    delete (UTTE::Generator*)generator;
+    // Mirrors UTTE::Generator::encodePointer, then copies the raw bytes into a caller-owned heap buffer following the
+    // same ownership convention as makeArray/makeMap (free() it, or hand it to a UTTE_CVariable with bDeallocate=true).
+    return UTTE_dupValueBytes(UTTE::Generator::encodePointer(value));
+}
+
+void UTTE_CGenerator_free(UTTE_CGenerator* generator)
+{
+    delete static_cast<UTTE::Generator*>(generator);
 }
 
 void UTTE_CGenerator_tryFreeCVariable(const UTTE_CVariable* var)
 {
     if (var->bDeallocate)
-        free((void*)var->value);
+        free(const_cast<char*>(var->value));
 }
 
 void UTTE_CGenerator_modify(UTTE_CFunctionHandle* handle, UTTE_CFunction function)
 {
-    auto* f = (UTTE::Function*)handle;
-    f->function = [function](std::vector<UTTE::Variable>& args, UTTE::Generator* gen) -> UTTE::Variable
+    auto* f = static_cast<UTTE::Function*>(handle);
+    f->function = [function](const std::vector<UTTE::Variable>& args, UTTE::Generator* gen) -> UTTE::Variable
     {
         std::vector<UTTE_CVariable> cvars;
         cvars.reserve(args.size());
 
         for (auto& a : args)
             cvars.push_back({ .value = a.value.c_str(), .type = a.type });
-        auto result = function.function(cvars.data(), cvars.size(), (UTTE_CGenerator*)gen);
+        const auto result = function.function(cvars.data(), cvars.size(), static_cast<UTTE_CGenerator*>(gen));
 
-        UTTE::Variable ret{ .value = result.value, .type = result.type };
+        UTTE::Variable ret = UTTE_toVariable(result);
 
         // Since non-string-literals will need heap allocation to be added to UTTE_CVariable safely, we can deallocate
         // them here if the user informs us using this boolean
@@ -156,12 +196,12 @@ void UTTE_CGenerator_modify(UTTE_CFunctionHandle* handle, UTTE_CFunction functio
 
     // Deallocate the name if needed
     if (function.bDeallocate)
-        free((void*)function.name);
+        free(const_cast<char*>(function.name));
 }
 
 const char* UTTE_CGenerator_getName(UTTE_CFunctionHandle* handle)
 {
-    return ((UTTE::Function*)handle)->name.c_str();
+    return static_cast<UTTE::Function*>(handle)->name.c_str();
 }
 
 bool UTTE_CoreFuncs_getBooleanV(const char* str)
@@ -169,14 +209,23 @@ bool UTTE_CoreFuncs_getBooleanV(const char* str)
     return UTTE::CoreFuncs::getBooleanV(str);
 }
 
+intptr_t UTTE_CoreFuncs_decodePointer(const char* value)
+{
+    if (value == nullptr)
+        return 0;
+    // The C boundary carries no length, but an encoded value is always exactly sizeof(intptr_t) bytes, so rebuild a
+    // length-correct string and defer to the C++ decoder (which also range-checks the size and returns 0 on mismatch).
+    return UTTE::Generator::decodePointer(utte_string(value, sizeof(intptr_t)));
+}
+
 char** UTTE_CoreFuncs_getArray(const UTTE_CVariable* variable, size_t* size)
 {
-    auto* arr = UTTE::CoreFuncs::getArray({ .value = variable->value, .type = variable->type });
+    const auto* arr = UTTE::CoreFuncs::getArray(UTTE_toVariable(*variable));
     if (arr == nullptr)
         return nullptr;
 
     *size = arr->size();
-    auto result = (char**)malloc(arr->size() * sizeof(char*));
+    const auto result = static_cast<char**>(malloc(arr->size() * sizeof(char*)));
 
     for (size_t i = 0; i < arr->size(); i++)
         result[i] = UTTE_strdup((*arr)[i].c_str());
@@ -185,11 +234,11 @@ char** UTTE_CoreFuncs_getArray(const UTTE_CVariable* variable, size_t* size)
 
 UTTE_CPair* UTTE_CoreFuncs_getMap(const UTTE_CVariable* variable, size_t* size)
 {
-    auto* map = UTTE::CoreFuncs::getMap({ .value = variable->value, .type = variable->type });
+    auto* map = UTTE::CoreFuncs::getMap(UTTE_toVariable(*variable));
     if (map == nullptr)
         return nullptr;
     *size = map->size();
-    auto result = (UTTE_CPair*)malloc(map->size() * sizeof(UTTE_CPair));
+    const auto result = static_cast<UTTE_CPair*>(malloc(map->size() * sizeof(UTTE_CPair)));
 
     size_t i = 0;
     for (auto& a : *map)
@@ -202,19 +251,19 @@ UTTE_CPair* UTTE_CoreFuncs_getMap(const UTTE_CVariable* variable, size_t* size)
     return result;
 }
 
-void UTTE_CoreFuncs_freeArray(char** array, size_t size)
+void UTTE_CoreFuncs_freeArray(char** array, const size_t size)
 {
     for (size_t i = 0; i < size; i++)
-        free((void*)array[i]);
-    free((void*)array);
+        free(array[i]);
+    free(array);
 }
 
-void UTTE_CoreFuncs_freeMap(UTTE_CPair* map, size_t size)
+void UTTE_CoreFuncs_freeMap(UTTE_CPair* map, const size_t size)
 {
     for (size_t i = 0; i < size; i++)
     {
-        free((void*)map[i].val);
-        free((void*)map[i].key);
+        free(map[i].val);
+        free(map[i].key);
     }
-    free((void*)map);
+    free(map);
 }

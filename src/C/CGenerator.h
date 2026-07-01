@@ -38,8 +38,8 @@ extern "C"
         char* val;
     } UTTE_CPair;
 
-    // Free with UTTE_CGenerator_Free
-    MLS_PUBLIC_API UTTE_CGenerator* UTTE_CGenerator_Allocate();
+    // Free with UTTE_CGenerator_free
+    MLS_PUBLIC_API UTTE_CGenerator* UTTE_CGenerator_allocate();
 
     MLS_PUBLIC_API UTTE_InitialisationResult UTTE_CGenerator_loadFromFile(UTTE_CGenerator* generator, const char* location);
     MLS_PUBLIC_API UTTE_InitialisationResult UTTE_CGenerator_loadFromString(UTTE_CGenerator* generator, const char* str);
@@ -63,7 +63,15 @@ extern "C"
     // yourself by calling "UTTE_CGenerator_tryFreeCVariable"
     MLS_PUBLIC_API UTTE_CVariable UTTE_CGenerator_makeMap(UTTE_CGenerator* generator, UTTE_CPair* map, size_t size);
 
-    MLS_PUBLIC_API void UTTE_CGenerator_Free(UTTE_CGenerator* generator);
+    // Encodes a pointer-sized integer into a heap char buffer (free it, or hand it to a UTTE_CVariable with
+    // bDeallocate=true). Takes an intptr_t so you can encode either a plain integer or a pointer cast to intptr_t.
+    MLS_PUBLIC_API char* UTTE_CGenerator_encodePointer(intptr_t value);
+
+    // Decodes a value written by UTTE_CGenerator_encodePointer back into an intptr_t (returns 0 on NULL / wrong size).
+    // Cast the result to (void*) if what you encoded was a pointer.
+    MLS_PUBLIC_API intptr_t UTTE_CoreFuncs_decodePointer(const char* value);
+
+    MLS_PUBLIC_API void UTTE_CGenerator_free(UTTE_CGenerator* generator);
 
     // Named "tryFreeCVariable" because it will not free the value if "UTTE_CVariable::bDeallocate" is not set to true
     MLS_PUBLIC_API void UTTE_CGenerator_tryFreeCVariable(const UTTE_CVariable* var);

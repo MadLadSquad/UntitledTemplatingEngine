@@ -1,6 +1,5 @@
 #include "CoreFuncs.hpp"
 #include "Generator.hpp"
-#include <sstream>
 
 
 UTTE::Variable UTTE::CoreFuncs::funcIf(std::vector<Variable>& args, UTTE::Generator* generator) noexcept
@@ -32,6 +31,25 @@ UTTE::Variable UTTE::CoreFuncs::funcIf(std::vector<Variable>& args, UTTE::Genera
     return { .value = *result.result, .type = result._internalBuffer.type };
 }
 
+// Parses a non-negative decimal index. Returns false (so callers can raise an error) for an empty string or any
+// non-digit character, instead of the old std::istringstream, which was both slow and silently yielded 0/garbage on
+// malformed input. A single decimal pass keeps this off the stream-parsing path.
+static bool parseIndex(const utte_string& str, size_t& out) noexcept
+{
+    if (str.empty())
+        return false;
+
+    size_t value = 0;
+    for (const char c : str)
+    {
+        if (c < '0' || c > '9')
+            return false;
+        value = value * 10 + static_cast<size_t>(c - '0');
+    }
+    out = value;
+    return true;
+}
+
 UTTE::Variable UTTE::CoreFuncs::funcAt(std::vector<Variable>& args, UTTE::Generator*) noexcept
 {
     if (args.size() != 3)
@@ -50,21 +68,19 @@ UTTE::Variable UTTE::CoreFuncs::funcAt(std::vector<Variable>& args, UTTE::Genera
         return UTTE_ERROR(UTTE_PARSE_STATUS_OUT_OF_BOUNDS);
     }
 
+    size_t index;
+    if (!parseIndex(args[2].value, index))
+        return UTTE_ERROR(UTTE_PARSE_STATUS_INVALID_VALUE);
+
     if (args[1].type == UTTE_VARIABLE_TYPE_HINT_ARRAY)
     {
         const auto array = getArray(args[1]);
         if (array == nullptr)
             return UTTE_ERROR(UTTE_PARSE_STATUS_INVALID_VALUE);
 
-        size_t index;
-        std::istringstream(args[2].value) >> index;
-
         return (array->size() <= index) ? UTTE_ERROR(UTTE_PARSE_STATUS_INVALID_VALUE)
                                         : Variable{ .value = (*array)[index], .type = UTTE_VARIABLE_TYPE_HINT_NORMAL };
     }
-
-    size_t index;
-    std::istringstream(args[2].value) >> index;
 
     return (args[1].value.length() <= index) ? Variable{ .value = "", .type = UTTE_VARIABLE_TYPE_HINT_NORMAL }
                                              : Variable{ .value = (utte_string() + args[1].value[index]), .type = UTTE_VARIABLE_TYPE_HINT_NORMAL };
@@ -190,14 +206,16 @@ template<bool equal>
 static inline UTTE::Variable funcBooleanCompare(std::vector<UTTE::Variable>& args) noexcept
 {
     UTTE::Variable result = { .value = "1", .type = UTTE_VARIABLE_TYPE_HINT_NORMAL };
-    if (args.size() < 2)
+    // Need the name plus at least two operands to compare; "{{ == a }}" is meaningless, so treat it as an error
+    // (matching the arity requirement of the other n-ary boolean ops).
+    if (args.size() < 3)
     {
         result.status = UTTE_PARSE_STATUS_OUT_OF_BOUNDS;
         return result;
     }
 
     const UTTE::Variable* variable = nullptr;
-    bool cond;
+    bool cond = false;
 
     for (size_t i = 2; i < args.size(); i++)
     {
@@ -307,9 +325,6 @@ UTTE::Variable UTTE::CoreFuncs::funcComment(std::vector<Variable>&, UTTE::Genera
 
 UTTE::Variable UTTE::CoreFuncs::funcList(std::vector<Variable>& args, UTTE::Generator* generator) noexcept
 {
-    if (args.size() == 1)
-        return { .value = "0", .type = UTTE_VARIABLE_TYPE_HINT_ARRAY };
-
     auto& arr = generator->requestArrayWithGC();
     for (size_t i = 1; i < args.size(); i++)
         arr.push_back(args[i].value);
@@ -319,8 +334,7 @@ UTTE::Variable UTTE::CoreFuncs::funcList(std::vector<Variable>& args, UTTE::Gene
 
 bool UTTE::CoreFuncs::getBooleanV(const utte_string& str) noexcept
 {
-    // On 0 characters will return 0 - guaranteed by ISO C++ 11, on 1 character will return a valid bool
-    return str[0] || str == "true";
+    return !(str[0] == 0 || str[0] == '0' || str == "false");
 }
 
 std::vector<utte_string>* UTTE::CoreFuncs::getArray(const UTTE::Variable& variable) noexcept
@@ -328,11 +342,9 @@ std::vector<utte_string>* UTTE::CoreFuncs::getArray(const UTTE::Variable& variab
     if (variable.type != UTTE_VARIABLE_TYPE_HINT_ARRAY)
         return nullptr;
 
-    // Get memory address of array. Arrays and maps encode their pointers as strings
-    auto addr = reinterpret_cast<intptr_t>(nullptr);
-    std::istringstream(variable.value) >> addr;
-
-    return reinterpret_cast<std::vector<utte_string>*>(addr);
+    // Arrays encode their pointer as raw bytes (see Generator::encodePointer); decodePointer hands it back as an
+    // intptr_t, so reinterpret that integer back into the concrete pointer type.
+    return reinterpret_cast<std::vector<utte_string>*>(Generator::decodePointer(variable.value));
 }
 
 utte_map<utte_string, utte_string>* UTTE::CoreFuncs::getMap(const UTTE::Variable& variable) noexcept
@@ -340,18 +352,13 @@ utte_map<utte_string, utte_string>* UTTE::CoreFuncs::getMap(const UTTE::Variable
     if (variable.type != UTTE_VARIABLE_TYPE_HINT_MAP)
         return nullptr;
 
-    // Get memory address of map. Arrays and maps encode their pointers as strings
-    auto addr = reinterpret_cast<intptr_t>(nullptr);
-    std::istringstream(variable.value) >> addr;
-
-    return reinterpret_cast<utte_map<utte_string, utte_string>*>(addr);
+    // Maps encode their pointer as raw bytes (see Generator::encodePointer); decodePointer hands it back as an
+    // intptr_t, so reinterpret that integer back into the concrete pointer type.
+    return reinterpret_cast<utte_map<utte_string, utte_string>*>(Generator::decodePointer(variable.value));
 }
 
-UTTE::Variable UTTE::CoreFuncs::funcDict(std::vector<Variable>& args, UTTE::Generator* generator) noexcept
+UTTE::Variable UTTE::CoreFuncs::funcDict(std::vector<Variable>& args, Generator* generator) noexcept
 {
-    if (args.size() == 1)
-        return { .value = "0", .type = UTTE_VARIABLE_TYPE_HINT_MAP };
-
     auto& map = generator->requestMapWithGC();
     for (size_t i = 1; i < args.size(); i++)
         if ((i % 2) == 0)

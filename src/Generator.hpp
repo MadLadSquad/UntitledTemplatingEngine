@@ -1,7 +1,9 @@
 #pragma once
 #include <cinttypes>
 #include <vector>
+#include <deque>
 #include <map>
+#include <cstring>
 #include <functional>
 #include "Common.h"
 #include "CoreFuncs.hpp"
@@ -60,6 +62,18 @@ namespace UTTE
         static Variable makeArray(const std::vector<utte_string>& arr) noexcept;
         static Variable makeMap(const utte_map<utte_string, utte_string>& map) noexcept;
 
+        // Encodes a pointer-sized integer into a string used purely as a byte buffer (a raw memcpy of the value's
+        // bytes). The parameter is a std::intptr_t rather than a void* so the same routine round-trips either a real
+        // pointer (reinterpret_cast it in) or a plain integer, letting callers interpret the payload as whichever they
+        // need.
+        static utte_string encodePointer(std::intptr_t value) noexcept;
+
+        // Decodes a value written by encodePointer. Returns 0 when the payload is not exactly pointer-sized, which also
+        // covers legacy/malformed values so callers still get a safe zero (reinterpret_cast<T*>(0) == nullptr) instead
+        // of garbage. The result is a std::intptr_t so it can be used as an integer or reinterpret_cast back to a
+        // pointer.
+        static std::intptr_t decodePointer(const utte_string& value) noexcept;
+
         // Returns a reference to an array that will be garbage-collected when the generator's destructor is called.
         // This is useful for custom functions that want to return arrays without managing their own registry
         std::vector<utte_string>& requestArrayWithGC() noexcept;
@@ -111,12 +125,11 @@ namespace UTTE
         // arguments of function expressions
         std::vector<size_t> specialFunctions{ 0, 1, 2 };
 
-        // This is a vector containing vectors of strings that will be deallocated on the destruction of this class.
-        // This is here specifically for the "list" function to be able to garbage collect lists.
-        std::vector<std::vector<utte_string>> internalVectorsForList;
-
-        // This is a vector containing dictionaries that will be deallocated on the destruction of this class.
-        // This is here specifically for the "dict" function to be able to garbage collect maps.
-        std::vector<utte_map<utte_string, utte_string>> internalMapsForDict;
+        // Deques (not vectors) of the arrays/maps that will be deallocated on the destruction of this class. These
+        // back the "list"/"dict" functions' garbage collection. A deque is required because we hand out the *address*
+        // of an element (encoded into a Variable) and keep using it later: a std::vector would reallocate on growth
+        // and dangle every previously-encoded pointer, whereas a std::deque never relocates its existing elements.
+        std::deque<std::vector<utte_string>> internalVectorsForList;
+        std::deque<utte_map<utte_string, utte_string>> internalMapsForDict;
     };
 }
