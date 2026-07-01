@@ -43,7 +43,8 @@ namespace UTTE
     class MLS_PUBLIC_API Generator
     {
     public:
-        Generator() = default;
+        // Constructs a root generator: installs the standard library into the functions registry.
+        Generator() noexcept;
 
         InitialisationResult loadFromFile(const utte_string& location) noexcept;
         InitialisationResult loadFromString(const utte_string& str) noexcept;
@@ -70,72 +71,31 @@ namespace UTTE
     private:
         friend class CoreFuncs;
 
+        // Constructs a child generator. It owns no standard library of its own: name lookups fall through to the
+        // parent's registry via the chain walked by findFunction/findSpecialFunction. This avoids deep-copying the
+        // whole functions registry on every control-flow (if/switch/cond/for) invocation. The parent must outlive the
+        // child, which the control-flow functions guarantee by keeping the child on the stack.
+        explicit Generator(const Generator* parentGenerator) noexcept : parent(parentGenerator) {}
+
         static UTTE::ParseResult parseFunction(Generator& generator, size_t& i, bool bRoot = false) noexcept;
 
+        // Resolves a function/variable by name, searching this generator's own registry first and then walking up the
+        // parent chain. Returns nullptr if no match exists anywhere in the chain.
+        [[nodiscard]] const Function* findFunction(const utte_string& name) const noexcept;
+        // Resolves a body-preserving special function (func/raw/comment) by name. These always live in the root
+        // generator's registry, so the lookup walks to the root and consults its specialFunctions indices.
+        [[nodiscard]] const Function* findSpecialFunction(const utte_string& name) const noexcept;
+
         utte_string data;
-        std::vector<Function> functions =
-        {
-            {
-                .name = "func",
-                .function = UTTE::CoreFuncs::funcFunc,
-            },
-            {
-                .name = "raw",
-                .function = UTTE::CoreFuncs::funcRaw
-            },
-            {
-                .name = "comment",
-                .function = UTTE::CoreFuncs::funcComment
-            },
-            {
-                .name = "if",
-                .function = UTTE::CoreFuncs::funcIf,
-            },
-            {
-                .name = "switch",
-                .function = UTTE::CoreFuncs::funcSwitch,
-            },
-            {
-                .name = "at",
-                .function = UTTE::CoreFuncs::funcAt,
-            },
-            {
-                .name = "cond",
-                .function = UTTE::CoreFuncs::funcCond,
-            },
-            {
-                .name = "for",
-                .function = UTTE::CoreFuncs::funcFor,
-            },
-            {
-                .name = "==",
-                .function = UTTE::CoreFuncs::funcBoolEqual,
-            },
-            {
-                .name = "!=",
-                .function = UTTE::CoreFuncs::funcBoolNotEqual,
-            },
-            {
-                .name = "!",
-                .function = UTTE::CoreFuncs::funcBoolNot,
-            },
-            {
-                .name = "&&",
-                .function = UTTE::CoreFuncs::funcBoolAnd,
-            },
-            {
-                .name = "||",
-                .function = UTTE::CoreFuncs::funcBoolOr,
-            },
-            {
-                .name = "list",
-                .function = UTTE::CoreFuncs::funcList
-            },
-            {
-                .name = "dict",
-                .function = UTTE::CoreFuncs::funcDict
-            }
-        };
+
+        // The parent generator in a control-flow lookup chain, or nullptr for a root generator. Used by findFunction
+        // to resolve names that this generator's own registry does not contain.
+        const Generator* parent = nullptr;
+
+        // For a root generator this holds the standard library plus any user-pushed variables/functions. For a child
+        // generator it holds only the overlay (e.g. a for-loop's iterator variables); everything else resolves through
+        // the parent chain.
+        std::vector<Function> functions;
 
         // This array has pointers to the following functions: func, raw, comment. The common thing about them is that
         // they preserve function expressions and don't execute them. For example a call like this:

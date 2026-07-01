@@ -194,9 +194,6 @@ UTTE_CPair* UTTE_CoreFuncs_getMap(const UTTE_CVariable* variable, size_t* size)
     size_t i = 0;
     for (auto& a : *map)
     {
-        if (i >= map->size())
-            break;
-
         result[i].key = UTTE_strdup(a.first.c_str());
         result[i].val = UTTE_strdup(a.second.c_str());
         ++i;

@@ -42,6 +42,24 @@ Maps using the dict function: {{ for key val {{ dict a b c d e }} {{ func {{ key
     {{ func {{ fallback_val }} }}
 }}
 
+------------------------------------------- BRANCHES WITHOUT A FALLBACK -------------------------------------------------
+
+The fallback branch is optional for all three branching functions. When omitted, they return an empty string instead:
+
+{{ if {{ == {{ value }} test }}
+    {{ func {{ test_val }} }}
+}}
+
+{{ switch {{ value }}
+    test {{ func {{ test_val }} }}
+    example {{ func {{ example_val }} }}
+}}
+
+{{ cond
+    {{ == {{ value }} test }}{{ func {{ test_val }} }}
+    {{ == {{ value }} example }}{{ func {{ example_val }} }}
+}}
+
 ----------------------------------------------------- RAW TEMPLATES ----------------------------------------------------
 
 {{ raw {{ for a arr

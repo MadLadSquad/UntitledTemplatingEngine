@@ -1,13 +1,60 @@
 #include "Generator.hpp"
 #include <fstream>
 
+UTTE::Generator::Generator() noexcept
+    : functions
+    {
+        { .name = "func",       .function = CoreFuncs::funcFunc            },
+        { .name = "raw",        .function = CoreFuncs::funcRaw             },
+        { .name = "comment",    .function = CoreFuncs::funcComment         },
+        { .name = "if",         .function = CoreFuncs::funcIf              },
+        { .name = "switch",     .function = CoreFuncs::funcSwitch          },
+        { .name = "at",         .function = CoreFuncs::funcAt              },
+        { .name = "cond",       .function = CoreFuncs::funcCond            },
+        { .name = "for",        .function = CoreFuncs::funcFor             },
+        { .name = "==",         .function = CoreFuncs::funcBoolEqual       },
+        { .name = "!=",         .function = CoreFuncs::funcBoolNotEqual    },
+        { .name = "!",          .function = CoreFuncs::funcBoolNot         },
+        { .name = "&&",         .function = CoreFuncs::funcBoolAnd         },
+        { .name = "||",         .function = CoreFuncs::funcBoolOr          },
+        { .name = "list",       .function = CoreFuncs::funcList            },
+        { .name = "dict",       .function = CoreFuncs::funcDict            },
+    }
+{}
+
+const UTTE::Function* UTTE::Generator::findFunction(const utte_string& name) const noexcept
+{
+    // Search this generator's own registry first, then fall through to the parent chain. This gives inner scopes
+    // (e.g. a for-loop's iterator variable) precedence over outer ones while still resolving the standard library and
+    // user-pushed values held by the root.
+    for (auto g = this; g != nullptr; g = g->parent)
+        for (const auto& f : g->functions)
+            if (f.name == name)
+                return &f;
+    return nullptr;
+}
+
+const UTTE::Function* UTTE::Generator::findSpecialFunction(const utte_string& name) const noexcept
+{
+    // The body-preserving special functions live in the root generator's registry, so walk up to it before checking
+    // the specialFunctions indices.
+    auto root = this;
+    while (root->parent != nullptr)
+        root = root->parent;
+
+    for (const auto a : root->specialFunctions)
+        if (root->functions[a].name == name)
+            return &root->functions[a];
+    return nullptr;
+}
+
 UTTE::InitialisationResult UTTE::Generator::loadFromFile(const utte_string& location) noexcept
 {
     std::ifstream in(location);
     if (!in)
         return UTTE_INITIALISATION_RESULT_INVALID_FILE;
     in.seekg(0, std::ios::end);
-    size_t size = in.tellg();
+    const size_t size = in.tellg();
     data.resize(size);
 
     in.seekg(0);
@@ -24,14 +71,16 @@ UTTE::InitialisationResult UTTE::Generator::loadFromString(const utte_string& st
 
 UTTE::Function& UTTE::Generator::pushVariable(const UTTE::Variable& var, const utte_string& name) noexcept
 {
-    functions.push_back(Function
-    {
-        .name = name,
-        .function = [var](std::vector<Variable>&, Generator*) -> Variable
+    functions.emplace_back(
+        Function
         {
-            return var;
-        },
-    });
+            .name = name,
+            .function = [var](std::vector<Variable>&, Generator*) -> Variable
+            {
+                return var;
+            },
+        }
+    );
     return functions.back();
 }
 
@@ -70,16 +119,9 @@ UTTE::Function& UTTE::Generator::pushFunction(const UTTE::Function& f) noexcept
     return functions.back();
 }
 
-UTTE::Variable UTTE::Generator::makeArray(const std::vector<utte_string>& arr) noexcept
-{
-    return { .value = std::to_string((intptr_t)(&arr)), .type = UTTE_VARIABLE_TYPE_HINT_ARRAY };
-}
-
 UTTE::ParseResult UTTE::Generator::parse() noexcept
 {
-    size_t i = data.find_first_of("{{");
-
-    for (; i != utte_string::npos; i = data.find("{{", i))
+    for (size_t i = data.find_first_of("{{"); i != utte_string::npos; i = data.find("{{", i))
     {
         ++i;
         ParseResultStatus status = parseFunction(*this, i, true).status;
@@ -115,20 +157,18 @@ UTTE::ParseResult UTTE::Generator::parseFunction(UTTE::Generator& generator, siz
 
     size_t beginCut = begin;
     bool bWasSpace = true;
-    //bool bPreviousWasSpace = true;
-    //size_t beginCut = begin;
     std::vector<Variable> args;
 
     for (; i < data.size(); i++)
     {
-        auto& it = data[i];
-        auto& pit = data[i - 1]; // pit = previous iterator
+        const auto& it = data[i];
+        const auto& pit = data[i - 1]; // pit = previous iterator
 
         // Start function
         if ((i - 1) >= 0 && it == '{' && pit == '{')
         {
             // This is because we will be at the second bracket, but we want the first one
-            size_t locationBeforeAppend = i - 1;
+            const size_t locationBeforeAppend = i - 1;
 
             // Increment i to exit the brackets, otherwise we will be in an endless loop
             ++i;
@@ -170,14 +210,11 @@ UTTE::ParseResult UTTE::Generator::parseFunction(UTTE::Generator& generator, siz
             // If it's an empty string return an empty result. If not find the correct function and call it.
             if (!args.empty())
             {
-                for (auto& a : generator.functions)
+                if (const Function* f = generator.findFunction(args[0].value))
                 {
-                    if (a.name == args[0].value)
-                    {
-                        result._internalBuffer = a.function(args, &generator);
-                        result.status = result._internalBuffer.status;
-                        return result;
-                    }
+                    result._internalBuffer = f->function(args, &generator);
+                    result.status = result._internalBuffer.status;
+                    return result;
                 }
             }
             return result;
@@ -192,34 +229,31 @@ UTTE::ParseResult UTTE::Generator::parseFunction(UTTE::Generator& generator, siz
                 args.push_back({ .value = data.substr(beginCut, i - beginCut), .type = UTTE_VARIABLE_TYPE_HINT_NORMAL });
                 if (args.size() == 1)
                 {
-                    for (auto a : generator.specialFunctions)
+                    // Matched a special function
+                    if (const Function* special = generator.findSpecialFunction(args[0].value))
                     {
-                        // Matched a special function
-                        if (generator.functions[a].name == args[0].value)
+                        // Go up by 1 index so that we don't start from the " "
+                        i = (i + 1) == data.size() ? i : i + 1;
+                        size_t depth = 0; // Expression depth level
+                        const size_t initialPos = i;
+                        for (; i < data.size(); i++)
                         {
-                            // Go up by 1 index so that we don't start from the " "
-                            i = (i + 1) == data.size() ? i : i + 1;
-                            size_t depth = 0; // Expression depth level
-                            size_t initialPos = i;
-                            for (; i < data.size(); i++)
+                            if (data[i] == '{' && data[i - 1] == '{')
+                                ++depth;
+                            else if (data[i] == '}' && data[i - 1] == '}')
                             {
-                                if (data[i] == '{' && data[i - 1] == '{')
-                                    ++depth;
-                                else if (data[i] == '}' && data[i - 1] == '}')
-                                {
-                                    if (depth == 0)
-                                        goto exit_special_fun_inner_block;
-                                    --depth;
-                                    ++i;
-                                }
+                                if (depth == 0)
+                                    goto exit_special_fun_inner_block;
+                                --depth;
+                                ++i;
                             }
-exit_special_fun_inner_block:
-                            args.push_back({ .value = data.substr(initialPos, i - initialPos - 1), .type = UTTE_VARIABLE_TYPE_HINT_NORMAL });
-                            result._internalBuffer = generator.functions[a].function(args, &generator);
-                            result.status = result._internalBuffer.status;
-
-                            return result;
                         }
+exit_special_fun_inner_block:
+                        args.push_back({ .value = data.substr(initialPos, i - initialPos - 1), .type = UTTE_VARIABLE_TYPE_HINT_NORMAL });
+                        result._internalBuffer = special->function(args, &generator);
+                        result.status = result._internalBuffer.status;
+
+                        return result;
                     }
                 }
             }
@@ -232,9 +266,14 @@ exit_special_fun_inner_block:
     return result;
 }
 
+UTTE::Variable UTTE::Generator::makeArray(const std::vector<utte_string>& arr) noexcept
+{
+    return { .value = std::to_string(reinterpret_cast<intptr_t>(&arr)), .type = UTTE_VARIABLE_TYPE_HINT_ARRAY };
+}
+
 UTTE::Variable UTTE::Generator::makeMap(const utte_map<utte_string, utte_string>& map) noexcept
 {
-    return { .value = std::to_string(((intptr_t)&map)), .type = UTTE_VARIABLE_TYPE_HINT_MAP };
+    return { .value = std::to_string(reinterpret_cast<intptr_t>(&map)), .type = UTTE_VARIABLE_TYPE_HINT_MAP };
 }
 
 bool UTTE::Variable::operator==(const UTTE::Variable &variable) const noexcept

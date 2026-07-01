@@ -38,3 +38,5 @@ CMakeLists.txt
 .idea/
 build/
 cmake-build-*/
+docs/
+graphify-out/
