@@ -95,12 +95,11 @@ static UTTE::Variable parseBranch(UTTE::Generator& gen, const utte_string& body)
     return { .value = *r.result, .type = UTTE_VARIABLE_TYPE_HINT_NORMAL };
 }
 
-static UTTE::Variable evaluateBranchChain(const std::vector<UTTE::Variable>& args, const size_t start, const UTTE::Variable* switchValue, UTTE::Generator* generator) noexcept
+// The branch bodies render in `gen`, a child generator that resolves names through the parent chain instead of copying
+// the whole registry. The child is constructed by the caller (funcSwitch/funcCond) because Generator's child
+// constructor is private and only CoreFuncs members are friends of Generator — a free function cannot build one.
+static UTTE::Variable evaluateBranchChain(const std::vector<UTTE::Variable>& args, const size_t start, const UTTE::Variable* switchValue, UTTE::Generator& gen) noexcept
 {
-    // The branch bodies render in a child generator that resolves names through the parent chain instead of copying
-    // the whole registry.
-    UTTE::Generator gen(*generator);
-
     for (size_t i = start; i < args.size(); i++)
     {
         if ((i + 1) < args.size() && args[i].type == UTTE_VARIABLE_TYPE_HINT_NORMAL && args[i + 1].type == UTTE_VARIABLE_TYPE_HINT_FUNCTION)
@@ -127,8 +126,11 @@ UTTE::Variable UTTE::CoreFuncs::funcSwitch(std::vector<Variable>& args, UTTE::Ge
     if (args.size() < 2)
         return UTTE_ERROR(UTTE_PARSE_STATUS_OUT_OF_BOUNDS);
 
+    // Build the lightweight child generator here (CoreFuncs is a friend of Generator, so it may call the private child
+    // constructor) rather than deep-copying the parent.
+    Generator gen(generator);
     // Cases start at index 2; each is compared against the subject at args[1].
-    return evaluateBranchChain(args, 2, &args[1], generator);
+    return evaluateBranchChain(args, 2, &args[1], gen);
 }
 
 UTTE::Variable UTTE::CoreFuncs::funcCond(std::vector<Variable>& args, UTTE::Generator* generator) noexcept
@@ -136,8 +138,11 @@ UTTE::Variable UTTE::CoreFuncs::funcCond(std::vector<Variable>& args, UTTE::Gene
     if (args.size() < 2)
         return UTTE_ERROR(UTTE_PARSE_STATUS_OUT_OF_BOUNDS);
 
+    // Build the lightweight child generator here (CoreFuncs is a friend of Generator, so it may call the private child
+    // constructor) rather than deep-copying the parent.
+    Generator gen(generator);
     // Tests start at index 1 and are evaluated as booleans (no subject value).
-    return evaluateBranchChain(args, 1, nullptr, generator);
+    return evaluateBranchChain(args, 1, nullptr, gen);
 }
 
 UTTE::Variable UTTE::CoreFuncs::funcFor(std::vector<Variable>& args, UTTE::Generator* generator) noexcept
