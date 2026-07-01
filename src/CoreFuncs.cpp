@@ -8,18 +8,21 @@ UTTE::Variable UTTE::CoreFuncs::funcIf(std::vector<Variable>& args, UTTE::Genera
     // optional fallback: 3 args = no fallback (empty value on false), 4 args = explicit false branch.
     if (args.size() != 3 && args.size() != 4)
         return UTTE_ERROR(UTTE_PARSE_STATUS_OUT_OF_BOUNDS);
-    if (args[2].type != UTTE_VARIABLE_TYPE_HINT_FUNCTION)
-        return UTTE_ERROR(UTTE_PARSE_STATUS_INVALID_TYPE);
-    if (args.size() == 4 && args[3].type != UTTE_VARIABLE_TYPE_HINT_FUNCTION)
-        return UTTE_ERROR(UTTE_PARSE_STATUS_INVALID_TYPE);
 
-    uint8_t index = 2;
-    if (!getBooleanV(args[1].value))
-        index = 3;
+    const uint8_t index = getBooleanV(args[1].value) ? 2 : 3;
 
     // The branch we selected is the missing fallback: return an empty value instead of erroring out.
     if (index >= args.size())
         return { .value = "", .type = UTTE_VARIABLE_TYPE_HINT_NORMAL };
+
+    // A branch may be given either as a deferred body ({{ func ... }} → FUNCTION, evaluated lazily below so the
+    // untaken branch is never rendered) or as a plain, already-evaluated value (any other type — the parser rendered
+    // it eagerly while cutting the arguments, e.g. a bare {{ additional_cdn_hosts }}). Only the *selected* branch is
+    // ever inspected, so an eager value in the untaken branch never matters. For an already-evaluated selected branch
+    // the work is done: hand the value straight back rather than rejecting it as the wrong type. This is why `if`
+    // (unlike switch/cond, whose value/branch pairing is distinguished purely by type) tolerates NORMAL branches.
+    if (args[index].type != UTTE_VARIABLE_TYPE_HINT_FUNCTION)
+        return { .value = args[index].value, .type = args[index].type };
 
     Generator gen(generator);
 
