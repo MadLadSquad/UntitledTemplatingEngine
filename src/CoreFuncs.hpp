@@ -76,20 +76,20 @@ namespace UTTE
         /**
          * @brief Given a const reference to a variable, converts it to an array
          * @param variable - The reference in question
-         * @return A pointer to an std::vector<std::string>. If the type does not match or the address is nullptr will
+         * @return A pointer to an std::vector<utte_string>. If the type does not match or the address is nullptr will
          * return nullptr. Make sure to check for it.
          */
-        static std::vector<std::string>* getArray(const Variable& variable) noexcept;
+        static std::vector<utte_string>* getArray(const Variable& variable) noexcept;
 
         /**
          * @brief Given a const reference to a variable, converts it to a map
          * @param variable - The reference in question
-         * @return A pointer to an utte_map<std::string, std::string>. If the type does not match or the address is
+         * @return A pointer to an utte_map<utte_string, utte_string>. If the type does not match or the address is
          * nullptr will return nullptr. Make sure to check for it.
          */
-        static utte_map<std::string, std::string>* getMap(const Variable& variable) noexcept;
+        static utte_map<utte_string, utte_string>* getMap(const Variable& variable) noexcept;
 
         // Returns a bool given a boolean value as a string
-        static bool getBooleanV(const std::string& str) noexcept;
+        static bool getBooleanV(const utte_string& str) noexcept;
     };
 }
