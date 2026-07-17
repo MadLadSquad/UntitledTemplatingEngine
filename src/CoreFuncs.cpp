@@ -9,6 +9,10 @@ UTTE::Variable UTTE::CoreFuncs::funcIf(std::vector<Variable>& args, UTTE::Genera
     if (args.size() != 3 && args.size() != 4)
         return UTTE_ERROR(UTTE_PARSE_STATUS_OUT_OF_BOUNDS);
 
+    // The condition is expected to arrive as an already-evaluated value. A deferred body ({{ func ... }} → FUNCTION
+    // type) is intentionally NOT evaluated here: getBooleanV runs on the raw body text, which almost always reads as
+    // true. Write the condition as a normal expression (e.g. {{ == a b }}) so the parser evaluates it while cutting
+    // the arguments.
     const uint8_t index = getBooleanV(args[1].value) ? 2 : 3;
 
     // The branch we selected is the missing fallback: return an empty value instead of erroring out.
@@ -64,9 +68,11 @@ UTTE::Variable UTTE::CoreFuncs::funcAt(std::vector<Variable>& args, UTTE::Genera
         if (map == nullptr)
             return UTTE_ERROR(UTTE_PARSE_STATUS_INVALID_VALUE);
 
-        for (const auto& a : *map)
-            if (args[2].value == a.first)
-                return { .value = a.second, .type = UTTE_VARIABLE_TYPE_HINT_NORMAL };
+        // Use the map's own lookup instead of a linear scan — with a hash map (e.g. the UTTE_CUSTOM_MAP override)
+        // this is O(1)
+        const auto it = map->find(args[2].value);
+        if (it != map->end())
+            return { .value = it->second, .type = UTTE_VARIABLE_TYPE_HINT_NORMAL };
 
         return UTTE_ERROR(UTTE_PARSE_STATUS_OUT_OF_BOUNDS);
     }
@@ -107,7 +113,9 @@ static UTTE::Variable evaluateBranchChain(const std::vector<UTTE::Variable>& arg
     {
         if ((i + 1) < args.size() && args[i].type == UTTE_VARIABLE_TYPE_HINT_NORMAL && args[i + 1].type == UTTE_VARIABLE_TYPE_HINT_FUNCTION)
         {
-            // switch compares the case value against the subject; cond evaluates the test as a boolean.
+            // switch compares the case value against the subject; cond evaluates the test as a boolean. Like `if`,
+            // a cond test must be an already-evaluated (NORMAL) value — the (value, branch) pairing requires it, so a
+            // deferred {{ func ... }} test is never evaluated as a condition.
             const bool matched = switchValue != nullptr ? (*switchValue == args[i]) : UTTE::CoreFuncs::getBooleanV(args[i].value);
             if (matched)
                 return parseBranch(gen, args[i + 1].value);
@@ -190,9 +198,8 @@ UTTE::Variable UTTE::CoreFuncs::funcFor(std::vector<Variable>& args, UTTE::Gener
         if (map == nullptr)
             return UTTE_ERROR(UTTE_PARSE_STATUS_INVALID_VALUE);
 
-        // Push these variables then use the reference to append new values in the loop. Reserve up front so the
-        // second push cannot reallocate the registry and dangle the reference taken from the first.
-        gen.getFunctionsRegistry().reserve(2);
+        // Push these variables then use the references to set new values in the loop. The registry is a node-based
+        // hash set, so references to its elements stay valid across later pushes — no reserve dance needed.
         auto& key = gen.pushVariable({ .value = "", .type = UTTE_VARIABLE_TYPE_HINT_NORMAL }, args[1].value);
         auto& val = gen.pushVariable({ .value = "", .type = UTTE_VARIABLE_TYPE_HINT_NORMAL }, args[2].value);
         for (auto& a : *map)
@@ -342,6 +349,8 @@ UTTE::Variable UTTE::CoreFuncs::funcList(std::vector<Variable>& args, UTTE::Gene
 
 bool UTTE::CoreFuncs::getBooleanV(const utte_string& str) noexcept
 {
+    // str[0] is safe even for an empty string: since C++11, operator[](size()) is guaranteed to return a reference
+    // to a null character, so an empty value reads as false without a separate empty() check
     return !(str[0] == 0 || str[0] == '0' || str == "false");
 }
 
@@ -368,6 +377,8 @@ utte_map<utte_string, utte_string>* UTTE::CoreFuncs::getMap(const UTTE::Variable
 UTTE::Variable UTTE::CoreFuncs::funcDict(std::vector<Variable>& args, Generator* generator) noexcept
 {
     auto& map = generator->requestMapWithGC();
+    // Duplicate keys are intentionally ignored: insert() keeps the first occurrence, so {{ dict a 1 a 2 }} yields
+    // { a: "1" }
     for (size_t i = 1; i < args.size(); i++)
         if ((i % 2) == 0)
             map.insert({ args[i - 1].value, args[i].value });

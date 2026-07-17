@@ -3,6 +3,9 @@
 #include <vector>
 #include <deque>
 #include <map>
+#include <array>
+#include <string_view>
+#include <unordered_set>
 #include <cstring>
 #include <functional>
 #include "Common.h"
@@ -40,7 +43,49 @@ namespace UTTE
     {
         utte_string name;
         std::function<Func> function = [](std::vector<Variable>&, UTTE::Generator*) -> Variable{ return {}; };
+
+        // The generator whose registry this function was pushed into (stamped by pushFunction). Internal: it exists
+        // so the C API's UTTE_CGenerator_modify can rename a function through a bare handle — the name is the
+        // registry's hash key, so a rename has to rehash the entry via the owning registry (see
+        // Generator::renameFunction). May be stale for functions copied wholesale between registries (e.g. assigning
+        // one getFunctionsRegistry() to another); renameFunction rejects such entries.
+        Generator* _internalOwner = nullptr;
     };
+
+    // Hash/equality for the functions registry. A Function's identity is its name only, and both functors are
+    // transparent (is_transparent) so findFunction can look up by utte_string without constructing a temporary
+    // Function (whose std::function member would allocate) on every expression. The name is hashed through
+    // std::hash<std::string_view>, so any char-based custom utte_string works without its own std::hash
+    // specialisation.
+    struct MLS_PUBLIC_API FunctionHash
+    {
+        using is_transparent = void;
+
+        size_t operator()(const utte_string& name) const noexcept
+        {
+            return std::hash<std::string_view>{}(std::string_view{ name.data(), name.size() });
+        }
+
+        size_t operator()(const Function& f) const noexcept
+        {
+            return operator()(f.name);
+        }
+    };
+
+    struct MLS_PUBLIC_API FunctionEqual
+    {
+        using is_transparent = void;
+
+        bool operator()(const Function& a, const Function& b) const noexcept { return a.name == b.name; }
+        bool operator()(const Function& a, const utte_string& b) const noexcept { return a.name == b; }
+        bool operator()(const utte_string& a, const Function& b) const noexcept { return a == b.name; }
+    };
+
+    // The functions registry: hashed by name so findFunction is O(1) instead of the linear scan the old
+    // std::vector required on every expression. std::unordered_set is deliberately node-based: references/pointers
+    // to elements (C API function handles, a for-loop's iterator variables) stay valid across later insertions,
+    // which a vector or flat hash container would invalidate on growth.
+    using FunctionRegistry = std::unordered_set<Function, FunctionHash, FunctionEqual>;
 
     class MLS_PUBLIC_API Generator
     {
@@ -58,6 +103,12 @@ namespace UTTE
 
         bool setVariable(const char* name, const Variable& variable) noexcept;
         bool setFunction(const char* name, const std::function<Func>& event) noexcept;
+
+        // Renames a registered function while keeping its registry entry consistent: the name is the registry's hash
+        // key, so it cannot be mutated in place — the entry is extracted, renamed and re-inserted, which preserves
+        // the element's address so existing references and C API handles stay valid. `f` must be an element of THIS
+        // generator's registry. Returns false if it is not, or if the new name is already taken.
+        bool renameFunction(Function& f, const utte_string& newName) noexcept;
 
         static Variable makeArray(const std::vector<utte_string>& arr) noexcept;
         static Variable makeMap(const utte_map<utte_string, utte_string>& map) noexcept;
@@ -81,7 +132,7 @@ namespace UTTE
         // This is useful for custom functions that want to return arrays without managing their own registry
         utte_map<utte_string, utte_string>& requestMapWithGC() noexcept;
 
-        std::vector<Function>& getFunctionsRegistry() noexcept;
+        FunctionRegistry& getFunctionsRegistry() noexcept;
     private:
         friend class CoreFuncs;
 
@@ -109,9 +160,9 @@ namespace UTTE
         // For a root generator this holds the standard library plus any user-pushed variables/functions. For a child
         // generator it holds only the overlay (e.g. a for-loop's iterator variables); everything else resolves through
         // the parent chain.
-        std::vector<Function> functions;
+        FunctionRegistry functions;
 
-        // This array has pointers to the following functions: func, raw, comment. The common thing about them is that
+        // Names of the body-preserving special functions: func, raw and comment. The common thing about them is that
         // they preserve function expressions and don't execute them. For example a call like this:
         // {{ raw A b c {{ my-func }}
         // new line btw
@@ -121,9 +172,10 @@ namespace UTTE
         // new line btw
         // "
         //
-        // More information on how these functions are parsed can be found in the if-branch, responsible for cutting
-        // arguments of function expressions
-        std::vector<size_t> specialFunctions{ 0, 1, 2 };
+        // A new body-preserving function must have its name listed here (the registry is hashed by name, so there are
+        // no stable indices to track any more). More information on how these functions are parsed can be found in
+        // the if-branch, responsible for cutting arguments of function expressions
+        static constexpr std::array<const char*, 3> specialFunctionNames{ "func", "raw", "comment" };
 
         // Deques (not vectors) of the arrays/maps that will be deallocated on the destruction of this class. These
         // back the "list"/"dict" functions' garbage collection. A deque is required because we hand out the *address*

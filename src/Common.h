@@ -45,10 +45,9 @@ extern "C"
         UTTE_VARIABLE_TYPE_HINT_FUNCTION = 3,
     } UTTE_VariableTypeHint;
 
-    // Result after initialising the parser with a string or file. These, especially
-    // UTTE_INITIALISATION_RESULT_INVALID_UTF8, do not affect the generator's internals in any way, so if a string has
-    // an invalid UTF-8 string the internal string in the generator will still be initialised. This is due to invalid
-    // character replacement strategies in the loadX members, part of the Generator class
+    // Result after initialising the parser with a string or file. Initialisation does not validate or transform the
+    // input in any way: whatever bytes are handed in (or successfully read from the file) become the generator's
+    // internal string verbatim
     typedef enum UTTE_InitialisationResult
     {
         UTTE_INITIALISATION_RESULT_SUCCESS = 0,

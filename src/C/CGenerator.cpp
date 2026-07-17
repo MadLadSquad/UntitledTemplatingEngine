@@ -190,9 +190,12 @@ void UTTE_CGenerator_modify(UTTE_CFunctionHandle* handle, UTTE_CFunction functio
         UTTE_CGenerator_tryFreeCVariable(&result);
         return ret;
     };
-    // If given an empty string, don't change the name
-    if (strlen(function.name) > 0)
-        f->name = function.name;
+    // If given an empty string, don't change the name. A rename must go through the owning generator's registry —
+    // the name is the registry's hash key, so it cannot be assigned in place. renameFunction rehashes the entry
+    // without moving it, so this handle stays valid afterwards. A function that was never pushed through a generator
+    // (no owner) cannot be renamed.
+    if (strlen(function.name) > 0 && f->_internalOwner != nullptr)
+        f->_internalOwner->renameFunction(*f, function.name);
 
     // Deallocate the name if needed
     if (function.bDeallocate)
@@ -224,11 +227,23 @@ char** UTTE_CoreFuncs_getArray(const UTTE_CVariable* variable, size_t* size)
     if (arr == nullptr)
         return nullptr;
 
-    *size = arr->size();
-    const auto result = static_cast<char**>(malloc(arr->size() * sizeof(char*)));
+    // + 1 so an empty array still yields a non-NULL buffer — malloc(0) may legally return NULL, which callers could
+    // not tell apart from the error return
+    const auto result = static_cast<char**>(malloc((arr->size() + 1) * sizeof(char*)));
+    if (result == nullptr)
+        return nullptr;
 
     for (size_t i = 0; i < arr->size(); i++)
+    {
         result[i] = UTTE_strdup((*arr)[i].c_str());
+        if (result[i] == nullptr)
+        {
+            // Roll back the elements duplicated so far so an allocation failure doesn't leak
+            UTTE_CoreFuncs_freeArray(result, i);
+            return nullptr;
+        }
+    }
+    *size = arr->size();
     return result;
 }
 
@@ -237,17 +252,30 @@ UTTE_CPair* UTTE_CoreFuncs_getMap(const UTTE_CVariable* variable, size_t* size)
     auto* map = UTTE::CoreFuncs::getMap(UTTE_toVariable(*variable));
     if (map == nullptr)
         return nullptr;
-    *size = map->size();
-    const auto result = static_cast<UTTE_CPair*>(malloc(map->size() * sizeof(UTTE_CPair)));
+
+    // + 1 so an empty map still yields a non-NULL buffer — malloc(0) may legally return NULL, which callers could
+    // not tell apart from the error return
+    const auto result = static_cast<UTTE_CPair*>(malloc((map->size() + 1) * sizeof(UTTE_CPair)));
+    if (result == nullptr)
+        return nullptr;
 
     size_t i = 0;
     for (auto& a : *map)
     {
         result[i].key = UTTE_strdup(a.first.c_str());
         result[i].val = UTTE_strdup(a.second.c_str());
+        if (result[i].key == nullptr || result[i].val == nullptr)
+        {
+            // Free the partially-filled pair (free(NULL) is a no-op), then roll back the fully duplicated ones so an
+            // allocation failure doesn't leak
+            free(result[i].key);
+            free(result[i].val);
+            UTTE_CoreFuncs_freeMap(result, i);
+            return nullptr;
+        }
         ++i;
     }
-
+    *size = map->size();
     return result;
 }
 

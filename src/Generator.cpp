@@ -4,21 +4,21 @@
 UTTE::Generator::Generator() noexcept
     : functions
     {
-        { .name = "func",       .function = CoreFuncs::funcFunc            },
-        { .name = "raw",        .function = CoreFuncs::funcRaw             },
-        { .name = "comment",    .function = CoreFuncs::funcComment         },
-        { .name = "if",         .function = CoreFuncs::funcIf              },
-        { .name = "switch",     .function = CoreFuncs::funcSwitch          },
-        { .name = "at",         .function = CoreFuncs::funcAt              },
-        { .name = "cond",       .function = CoreFuncs::funcCond            },
-        { .name = "for",        .function = CoreFuncs::funcFor             },
-        { .name = "==",         .function = CoreFuncs::funcBoolEqual       },
-        { .name = "!=",         .function = CoreFuncs::funcBoolNotEqual    },
-        { .name = "!",          .function = CoreFuncs::funcBoolNot         },
-        { .name = "&&",         .function = CoreFuncs::funcBoolAnd         },
-        { .name = "||",         .function = CoreFuncs::funcBoolOr          },
-        { .name = "list",       .function = CoreFuncs::funcList            },
-        { .name = "dict",       .function = CoreFuncs::funcDict            },
+        { .name = "func",       .function = CoreFuncs::funcFunc,            ._internalOwner = this      },
+        { .name = "raw",        .function = CoreFuncs::funcRaw,             ._internalOwner = this      },
+        { .name = "comment",    .function = CoreFuncs::funcComment,         ._internalOwner = this      },
+        { .name = "if",         .function = CoreFuncs::funcIf,              ._internalOwner = this      },
+        { .name = "switch",     .function = CoreFuncs::funcSwitch,          ._internalOwner = this      },
+        { .name = "at",         .function = CoreFuncs::funcAt,              ._internalOwner = this      },
+        { .name = "cond",       .function = CoreFuncs::funcCond,            ._internalOwner = this      },
+        { .name = "for",        .function = CoreFuncs::funcFor,             ._internalOwner = this      },
+        { .name = "==",         .function = CoreFuncs::funcBoolEqual,       ._internalOwner = this      },
+        { .name = "!=",         .function = CoreFuncs::funcBoolNotEqual,    ._internalOwner = this      },
+        { .name = "!",          .function = CoreFuncs::funcBoolNot,         ._internalOwner = this      },
+        { .name = "&&",         .function = CoreFuncs::funcBoolAnd,         ._internalOwner = this      },
+        { .name = "||",         .function = CoreFuncs::funcBoolOr,          ._internalOwner = this      },
+        { .name = "list",       .function = CoreFuncs::funcList,            ._internalOwner = this      },
+        { .name = "dict",       .function = CoreFuncs::funcDict,            ._internalOwner = this	},
     }
 {}
 
@@ -26,25 +26,33 @@ const UTTE::Function* UTTE::Generator::findFunction(const utte_string& name) con
 {
     // Search this generator's own registry first, then fall through to the parent chain. This gives inner scopes
     // (e.g. a for-loop's iterator variable) precedence over outer ones while still resolving the standard library and
-    // user-pushed values held by the root.
+    // user-pushed values held by the root. Each registry is hashed by name, so a lookup is O(1) per scope instead of
+    // the linear scan the old vector registry required.
     for (auto g = this; g != nullptr; g = g->parent)
-        for (const auto& f : g->functions)
-            if (f.name == name)
-                return &f;
+    {
+        const auto f = g->functions.find(name);
+        if (f != g->functions.end())
+            return &*f;
+    }
     return nullptr;
 }
 
 const UTTE::Function* UTTE::Generator::findSpecialFunction(const utte_string& name) const noexcept
 {
     // The body-preserving special functions live in the root generator's registry, so walk up to it before checking
-    // the specialFunctions indices.
+    // the name against the specialFunctionNames list.
     auto root = this;
     while (root->parent != nullptr)
         root = root->parent;
 
-    for (const auto a : root->specialFunctions)
-        if (root->functions[a].name == name)
-            return &root->functions[a];
+    for (const auto special : specialFunctionNames)
+    {
+        if (name == special)
+        {
+            const auto f = root->functions.find(name);
+            return f != root->functions.end() ? &*f : nullptr;
+        }
+    }
     return nullptr;
 }
 
@@ -79,7 +87,7 @@ UTTE::InitialisationResult UTTE::Generator::loadFromString(const utte_string& st
 
 UTTE::Function& UTTE::Generator::pushVariable(const UTTE::Variable& var, const utte_string& name) noexcept
 {
-    functions.emplace_back(
+    return pushFunction(
         Function
         {
             .name = name,
@@ -89,42 +97,57 @@ UTTE::Function& UTTE::Generator::pushVariable(const UTTE::Variable& var, const u
             },
         }
     );
-    return functions.back();
 }
 
 bool UTTE::Generator::setVariable(const char* name, const UTTE::Variable& variable) noexcept
 {
-    for (auto& a : functions)
+    return setFunction(name, [variable](std::vector<Variable>&, Generator*) -> Variable
     {
-        if (a.name == name)
-        {
-            a.function = [variable](std::vector<Variable>&, Generator*) -> Variable
-            {
-                return variable;
-            };
-            return true;
-        }
-    }
-    return false;
+        return variable;
+    });
 }
 
 bool UTTE::Generator::setFunction(const char* name, const std::function<Func>& event) noexcept
 {
-    for (auto& a : functions)
-    {
-        if (a.name == name)
-        {
-            a.function = event;
-            return true;
-        }
-    }
-    return false;
+    const auto f = functions.find(utte_string{ name });
+    if (f == functions.end())
+        return false;
+
+    // Registry elements are const to protect the hash key (the name); the callback is not part of the key, so
+    // mutating it through a const_cast keeps the container's invariants intact
+    const_cast<Function&>(*f).function = event;
+    return true;
 }
 
 UTTE::Function& UTTE::Generator::pushFunction(const UTTE::Function& f) noexcept
 {
-    functions.push_back(f);
-    return functions.back();
+    // On a name collision insert() keeps the existing entry, which preserves the old lookup semantics: with the
+    // vector registry a duplicate push appended an entry that findFunction (first match wins) could never reach
+    const auto [it, bInserted] = functions.insert(f);
+    auto& stored = const_cast<Function&>(*it); // Safe: only non-key members are ever mutated through this reference
+    if (bInserted)
+        stored._internalOwner = this;
+    return stored;
+}
+
+bool UTTE::Generator::renameFunction(UTTE::Function& f, const utte_string& newName) noexcept
+{
+    if (f.name == newName)
+        return true;
+
+    const auto it = functions.find(f.name);
+    // The entry must be this registry's own element (not a copy of it or another generator's function), and the new
+    // name must be free
+    if (it == functions.end() || &*it != &f || functions.find(newName) != functions.end())
+        return false;
+
+    // The name is the hash key, so it cannot be mutated in place: extract the node, rename it and re-insert. A node
+    // extraction/insertion never copies or moves the element itself, so its address — and therefore every existing
+    // reference or C API handle to it — stays valid.
+    auto node = functions.extract(it);
+    node.value().name = newName;
+    functions.insert(std::move(node));
+    return true;
 }
 
 UTTE::ParseResult UTTE::Generator::parse() noexcept
@@ -139,7 +162,7 @@ UTTE::ParseResult UTTE::Generator::parse() noexcept
     return ParseResult{ .status = UTTE_PARSE_STATUS_SUCCESS, .result = &data };
 }
 
-std::vector<UTTE::Function>& UTTE::Generator::getFunctionsRegistry() noexcept
+UTTE::FunctionRegistry& UTTE::Generator::getFunctionsRegistry() noexcept
 {
     return functions;
 }
