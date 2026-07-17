@@ -41,6 +41,10 @@ UTTE::Variable UTTE::CoreFuncs::funcIf(std::vector<Variable>& args, UTTE::Genera
 // Parses a non-negative decimal index. Returns false (so callers can raise an error) for an empty string or any
 // non-digit character, instead of the old std::istringstream, which was both slow and silently yielded 0/garbage on
 // malformed input. A single decimal pass keeps this off the stream-parsing path.
+//
+// Overflow is intentionally not checked: a digit string long enough to wrap size_t is not a meaningful index for any
+// real collection, and the wrapped value is treated like any other index — it still gets bounds-checked against the
+// collection afterwards, so at worst an absurd index resolves to an in-range element instead of erroring.
 static bool parseIndex(const utte_string& str, size_t& out) noexcept
 {
     if (str.empty())

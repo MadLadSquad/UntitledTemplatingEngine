@@ -196,6 +196,13 @@ utte_map<utte_string, utte_string>& UTTE::Generator::requestMapWithGC() noexcept
     return internalMapsForDict.back();
 }
 
+// The whitespace set that separates arguments inside an expression. '\r' is included so CRLF-authored templates
+// don't glue a carriage return onto the last argument of a line.
+static bool isSeparator(const char c) noexcept
+{
+    return c == ' ' || c == '\t' || c == '\v' || c == '\n' || c == '\r';
+}
+
 UTTE::ParseResult UTTE::Generator::parseFunction(UTTE::Generator& generator, size_t& i, const bool bRoot) noexcept
 {
     auto& data = generator.data;
@@ -209,11 +216,12 @@ UTTE::ParseResult UTTE::Generator::parseFunction(UTTE::Generator& generator, siz
 
     for (; i < data.size(); i++)
     {
+        // The previous character (data[i - 1]) is only ever read behind the index guards below, so a frame entered
+        // at i == 0 cannot read out of bounds
         const auto& it = data[i];
-        const auto& pit = data[i - 1]; // pit = previous iterator
 
         // Start function
-        if (i >= 1 && it == '{' && pit == '{')
+        if (i >= 1 && it == '{' && data[i - 1] == '{')
         {
             // This is because we will be at the second bracket, but we want the first one
             const size_t locationBeforeAppend = i - 1;
@@ -257,7 +265,7 @@ UTTE::ParseResult UTTE::Generator::parseFunction(UTTE::Generator& generator, siz
                 bWasSpace = true;
                 beginCut = i;
             }
-            else if (data[i] == ' ' || data[i] == '\t' || data[i] == '\v' || data[i] == '\n')
+            else if (isSeparator(data[i]))
             {
                 bWasSpace = true;
                 beginCut = i + 1;
@@ -278,10 +286,10 @@ UTTE::ParseResult UTTE::Generator::parseFunction(UTTE::Generator& generator, siz
         if (bRoot)
             continue;
 
-        if (i >= 2 && it == '}' && pit == '}')
+        if (i >= 2 && it == '}' && data[i - 1] == '}')
         {
             // In case a string is like this: {{ func arg1 arg2}} instead of {{ func arg1 arg2 }} we do a final cut
-            if (data[i - 2] != ' ' && data[i - 2] != '\t' && data[i - 2] != '\v' && data[i - 2] != '\n')
+            if (!isSeparator(data[i - 2]))
                 args.push_back({ .value = data.substr(beginCut, i - 1 - beginCut), .type = UTTE_VARIABLE_TYPE_HINT_NORMAL });
 
             // If it's an empty string return an empty result. If not find the correct function and call it.
@@ -298,7 +306,7 @@ UTTE::ParseResult UTTE::Generator::parseFunction(UTTE::Generator& generator, siz
         } // Argument and most of the string cutting behaviour here
 
         if (!((i + 1) < data.size() && it == '}' && data[i + 1] == '}')
-            && (it == ' ' || it == '\t' || it == '\v' || it == '\n' || ((i + 1) < data.size() && it == '{' && data[i + 1] == '{') || (i + 1) == data.size()))
+            && (isSeparator(it) || ((i + 1) < data.size() && it == '{' && data[i + 1] == '{') || (i + 1) == data.size()))
         {
             if (bWasSpace)
                 ++beginCut;

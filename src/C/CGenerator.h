@@ -47,12 +47,16 @@ extern "C"
     MLS_PUBLIC_API UTTE_CParseResult UTTE_CGenerator_parse(UTTE_CGenerator* generator);
 
     // If var->bDeallocate is set to true it will automatically deallocate the value after use
+    // A NULL name is rejected: returns NULL without registering anything (the value is still freed if bDeallocate is set)
     MLS_PUBLIC_API UTTE_CFunctionHandle* UTTE_CGenerator_pushVariable(UTTE_CGenerator* generator, UTTE_CVariable var, const char* name);
     // If f->bDeallocate is set to true it will automatically deallocate the value after use
+    // A NULL name is rejected: returns NULL without registering anything
     MLS_PUBLIC_API UTTE_CFunctionHandle* UTTE_CGenerator_pushFunction(UTTE_CGenerator* generator, UTTE_CFunction f);
 
     // If var->bDeallocate is set to true it will automatically deallocate the value after use
+    // A NULL name is rejected: returns false (the value is still freed if bDeallocate is set)
     MLS_PUBLIC_API bool UTTE_CGenerator_setVariable(UTTE_CGenerator* generator, const char* name, const UTTE_CVariable* variable);
+    // A NULL name is rejected: returns false
     MLS_PUBLIC_API bool UTTE_CGenerator_setFunction(UTTE_CGenerator* generator, const char* name, UTTE_CFunctionCallback event);
 
     // Data inside the return value is heap-allocated. Either call "UTTE_CGenerator_pushVariable" or deallocate it
@@ -79,7 +83,7 @@ extern "C"
     // Modifies a function from a handle
     // If function->bDeallocate is set to true it will automatically deallocate the value after use
     //
-    // If you don't want to change the name of the function set function.name to an empty string
+    // If you don't want to change the name of the function set function.name to an empty string or NULL
     MLS_PUBLIC_API void UTTE_CGenerator_modify(UTTE_CFunctionHandle* handle, UTTE_CFunction function);
 
     // Returns the name of a function from a function handle

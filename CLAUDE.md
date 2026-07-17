@@ -28,6 +28,8 @@ The only checked-in CI is `.github/workflows/release.yaml`, which just tarballs 
 
 **Function calling convention:** a stdlib/custom function has signature `Variable(std::vector<Variable>& args, Generator*)`. `args[0]` is always the function's own name; real arguments start at `args[1]`. Arity is checked by hand inside each function.
 
+**Argument cutting is purely whitespace-driven — there is no quoting or escaping.** Inside an expression, any whitespace character (space, tab, `\v`, `\n`, `\r` — see `isSeparator` in Generator.cpp) after the function name terminates the current argument, and everything after the first separator is treated as literal strings: an argument can never contain whitespace, and there is no syntax to make it. Runs of consecutive separators collapse (`{{ probe a  b }}` → `[a][b]`, no empty argument), a separator directly before `}}` is absorbed, and a nested `{{ ... }}` glues to adjacent non-space text (`{{ probe {{ raw x }}tail }}` → `[x ][tail]`). The only way whitespace reaches a function is through the body-preserving special functions (see below), which capture their body verbatim.
+
 **Error handling:** functions signal failure by returning a `Variable` with a non-success `status` (use the `UTTE_ERROR(status)` macro — it yields an empty value plus the status). `Generator::parse` aborts the whole document the instant any expression returns non-success (Generator.cpp:132-134); there is no partial output on error. Nested-expression errors propagate too — `parseFunction` checks the recursive call's status (`res.status`) before continuing. Control-flow functions (`if`, `switch`, `cond`) that find no matching branch and were given no fallback return an empty value rather than erroring — the fallback branch is optional. `if` therefore takes either 3 args (no else branch → empty on false) or 4 (explicit else). Unlike `switch`/`cond` — whose value/branch pairs are distinguished purely by type, so their branches *must* be FUNCTION-typed — `if` only ever inspects the single branch it selects and accepts it in either form: a deferred `{{ func ... }}` body (FUNCTION, re-parsed lazily so the untaken branch is never rendered) or a plain already-evaluated value (any other type — the parser rendered it eagerly while cutting arguments, e.g. a bare `{{ if cond {{ some_var }} }}`), which is returned verbatim.
 
 ## File map
@@ -53,5 +55,3 @@ The captured body is preserved verbatim: only the single separator after the fun
 - `utte_map` defaults to `std::map`; override with `-DUTTE_CUSTOM_MAP=<template>` plus `-DUTTE_CUSTOM_MAP_INCLUDE=<...>`. UVKBuildTool builds with `UTTE_CUSTOM_MAP=phmap::flat_hash_map`.
 
 `MLS_EXPORT_LIBRARY` (+ `MLS_LIB_COMPILE` when compiling the lib itself) gate `__declspec(dllexport/dllimport)` on Windows; elsewhere the macro is empty.
-
-Submodule: `ThirdParty/utfcpp` (UTF-8 handling).

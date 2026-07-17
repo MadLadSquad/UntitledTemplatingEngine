@@ -72,6 +72,13 @@ UTTE_CParseResult UTTE_CGenerator_parse(UTTE_CGenerator* generator)
 
 UTTE_CFunctionHandle* UTTE_CGenerator_pushVariable(UTTE_CGenerator* generator, const UTTE_CVariable var, const char* name)
 {
+    // A NULL name cannot become a registry key. Still honour bDeallocate so the mistake doesn't also leak the value
+    if (name == nullptr)
+    {
+        UTTE_CGenerator_tryFreeCVariable(&var);
+        return nullptr;
+    }
+
     auto& func = cast(generator)->pushVariable(UTTE_toVariable(var), name);
     UTTE_CGenerator_tryFreeCVariable(&var);
     return &func;
@@ -79,6 +86,10 @@ UTTE_CFunctionHandle* UTTE_CGenerator_pushVariable(UTTE_CGenerator* generator, c
 
 UTTE_CFunctionHandle* UTTE_CGenerator_pushFunction(UTTE_CGenerator* generator, const UTTE_CFunction f)
 {
+    // A NULL name cannot become a registry key (and there is nothing to deallocate for it)
+    if (f.name == nullptr)
+        return nullptr;
+
     auto& func = cast(generator)->pushFunction({ .name = f.name, .function = [f](const std::vector<UTTE::Variable>& args, UTTE::Generator* gen) -> UTTE::Variable {
         std::vector<UTTE_CVariable> cvars;
         cvars.reserve(args.size());
@@ -102,6 +113,13 @@ UTTE_CFunctionHandle* UTTE_CGenerator_pushFunction(UTTE_CGenerator* generator, c
 
 bool UTTE_CGenerator_setVariable(UTTE_CGenerator* generator, const char* name, const UTTE_CVariable* variable)
 {
+    // A NULL name can never match a registry entry. Still honour bDeallocate so the mistake doesn't also leak the value
+    if (name == nullptr)
+    {
+        UTTE_CGenerator_tryFreeCVariable(variable);
+        return false;
+    }
+
     const auto result = cast(generator)->setVariable(name, UTTE_toVariable(*variable));
     UTTE_CGenerator_tryFreeCVariable(variable);
     return result;
@@ -109,6 +127,10 @@ bool UTTE_CGenerator_setVariable(UTTE_CGenerator* generator, const char* name, c
 
 bool UTTE_CGenerator_setFunction(UTTE_CGenerator* generator, const char* name, UTTE_CFunctionCallback event)
 {
+    // A NULL name can never match a registry entry
+    if (name == nullptr)
+        return false;
+
     return cast(generator)->setFunction(name, [event](std::vector<UTTE::Variable>& args, UTTE::Generator* gen) -> UTTE::Variable
     {
         std::vector<UTTE_CVariable> cvars;
@@ -190,11 +212,11 @@ void UTTE_CGenerator_modify(UTTE_CFunctionHandle* handle, UTTE_CFunction functio
         UTTE_CGenerator_tryFreeCVariable(&result);
         return ret;
     };
-    // If given an empty string, don't change the name. A rename must go through the owning generator's registry —
-    // the name is the registry's hash key, so it cannot be assigned in place. renameFunction rehashes the entry
-    // without moving it, so this handle stays valid afterwards. A function that was never pushed through a generator
-    // (no owner) cannot be renamed.
-    if (strlen(function.name) > 0 && f->_internalOwner != nullptr)
+    // If given a NULL or empty name, don't change the name. A rename must go through the owning generator's
+    // registry — the name is the registry's hash key, so it cannot be assigned in place. renameFunction rehashes the
+    // entry without moving it, so this handle stays valid afterwards. A function that was never pushed through a
+    // generator (no owner) cannot be renamed.
+    if (function.name != nullptr && function.name[0] != '\0' && f->_internalOwner != nullptr)
         f->_internalOwner->renameFunction(*f, function.name);
 
     // Deallocate the name if needed
